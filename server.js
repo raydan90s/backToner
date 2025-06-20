@@ -9,7 +9,8 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:3000',
   'https://tonerexpress-ec.com',
-  'https://www.tonerexpress-ec.com'
+  'https://www.tonerexpress-ec.com',
+  'https://www.novafenix-ec.com'
 ];
 
 // 👇 Preflight (CORS OPTIONS)
