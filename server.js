@@ -1,13 +1,10 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const router = require('./routes'); 
+const router = require('./routes');
 require("dotenv").config();
 
-
 const app = express();
-
 
 const allowedOrigins = [
   'http://localhost:3000',
@@ -15,10 +12,22 @@ const allowedOrigins = [
   'https://www.tonerexpress-ec.com'
 ];
 
+// 👇 Preflight (CORS OPTIONS)
+app.options('*', cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, origin); // Retorna el origin dinámicamente
+      callback(null, origin);
     } else {
       callback(new Error('No permitido por CORS'));
     }
