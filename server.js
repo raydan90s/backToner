@@ -8,10 +8,23 @@ require("dotenv").config();
 
 const app = express();
 
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://tonerexpress-ec.com',
+  'https://www.tonerexpress-ec.com'
+];
+
 app.use(cors({
-  origin: '*',
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
   credentials: true
 }));
+
 app.use(cookieParser());
 app.use(express.json());
 
