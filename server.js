@@ -8,6 +8,7 @@ require("dotenv").config();
 
 const app = express();
 
+
 const allowedOrigins = [
   'http://localhost:3000',
   'https://tonerexpress-ec.com',
@@ -17,7 +18,7 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
+      callback(null, origin); // Retorna el origin dinámicamente
     } else {
       callback(new Error('No permitido por CORS'));
     }
