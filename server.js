@@ -38,6 +38,13 @@ app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });
 });
 
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    console.log('Access-Control-Allow-Origin:', res.getHeader('Access-Control-Allow-Origin'));
+  });
+  next();
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
