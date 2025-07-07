@@ -1,61 +1,66 @@
 const pool = require('./db');
 
 const getProductosConImagenes = async (req, res) => {
-    try {
-        const [results] = await pool.query(`
-    SELECT
-        p.id,
-        p.nombre AS name,
-        p.tipo AS category,
-        p.descripcion AS description,
-        p.precio AS price,
-        mo.nombre AS model,
-        m.nombre AS brand,
-        p.estado,
-        ip.url_imagen,
-        SUM(ipr.stock) AS stock
-    FROM producto p
-    LEFT JOIN modelo mo ON p.id_modelo = mo.id
-    LEFT JOIN marcas m ON mo.id_marca = m.id
-    LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
-    LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
-    GROUP BY p.id, ip.url_imagen
-    ORDER BY p.id;
-`);
-        console.log('[getProductosConImagenes] llamada desde', req.headers.origin);
+  try {
+    console.log('[getProductosConImagenes] llamada desde', req.headers.origin);
 
-        const productosAgrupados = results.reduce((acc, producto) => {
-            const existente = acc.find(p => p.id === producto.id);
-            const imagen = producto.url_imagen ? { url: producto.url_imagen } : null;
+    const [results] = await pool.query(`
+      SELECT
+          p.id,
+          p.nombre AS name,
+          p.tipo AS category,
+          p.descripcion AS description,
+          p.precio AS price,
+          mo.nombre AS model,
+          m.nombre AS brand,
+          p.estado,
+          ip.url_imagen,
+          SUM(ipr.stock) AS stock
+      FROM producto p
+      LEFT JOIN modelo mo ON p.id_modelo = mo.id
+      LEFT JOIN marcas m ON mo.id_marca = m.id
+      LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
+      LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
+      GROUP BY p.id, ip.url_imagen
+      ORDER BY p.id;
+    `);
 
-            if (existente) {
-                if (imagen) existente.images.push(imagen);
-            } else {
-                acc.push({
-                    id: producto.id,
-                    name: producto.name,
-                    category: producto.category,
-                    description: producto.description,
-                    price: producto.price,
-                    model: producto.model,
-                    brand: producto.brand,
-                    estado: producto.estado,
-                    stock: producto.stock ?? 0,
-                    images: imagen ? [imagen] : [],
-                });
-            }
-
-            return acc;
-        }, []);
-
-        res.json(productosAgrupados);
-    } catch (err) {
-        console.error("Error al obtener productos:", err.message, err.stack);
-
-        res.status(500).json({ error: 'Error interno del servidor' });
+    if (!Array.isArray(results)) {
+      console.error('La base de datos no devolvió un array:', results);
+      return res.status(500).json({ error: 'Respuesta inesperada de la base de datos' });
     }
-};
 
+    const productosAgrupados = results.reduce((acc, producto) => {
+      const existente = acc.find(p => p.id === producto.id);
+      const imagen = producto.url_imagen ? { url: producto.url_imagen } : null;
+
+      if (existente) {
+        if (imagen) existente.images.push(imagen);
+      } else {
+        acc.push({
+          id: producto.id,
+          name: producto.name,
+          category: producto.category,
+          description: producto.description,
+          price: producto.price,
+          model: producto.model,
+          brand: producto.brand,
+          estado: producto.estado,
+          stock: producto.stock ?? 0,
+          images: imagen ? [imagen] : [],
+        });
+      }
+
+      return acc;
+    }, []);
+
+    res.json(productosAgrupados);
+
+  } catch (err) {
+    console.error("💥 Error al obtener productos:", err.message, err.stack);
+    res.status(500).json({ error: 'Error interno del servidor', detail: err.message });
+  }
+};
 
 const eliminarProducto = async (req, res) => {
     const { id } = req.params;
