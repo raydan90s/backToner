@@ -1,55 +1,51 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const router = require('./routes'); 
+const router = require('./routes');
 require("dotenv").config();
-
 
 const app = express();
 
-
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:5173',
   'https://tonerexpress-ec.com',
   'https://www.tonerexpress-ec.com',
   'https://www.novafenix-ec.com',
-  'http://localhost:5173',
-
 ];
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  }
-  // Maneja preflight OPTIONS
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
+// CORS primero
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin);
+    } else {
+      callback(new Error(`CORS: Origin ${origin} no permitido`));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+}));
 
 app.use(cookieParser());
 app.use(express.json());
 
+// Tu router
 app.use('/api', router);
 
+// 404 handler
 app.use((req, res) => {
-  console.warn(`Ruta no encontrada o sin respuesta: ${req.method} ${req.originalUrl}`);
+  console.warn(`Ruta no encontrada: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ error: "Ruta no encontrada" });
 });
 
-app.use((req, res, next) => {
-  res.on('finish', () => {
-    console.log('Access-Control-Allow-Origin:', res.getHeader('Access-Control-Allow-Origin'));
-  });
-  next();
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message);
+  res.status(500).json({ error: err.message });
 });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Servidor escuchando en el puerto ${PORT}`);
+  console.log(`✅ Servidor escuchando en el puerto ${PORT}`);
 });
