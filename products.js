@@ -22,7 +22,7 @@ const getProductosConImagenes = async (req, res) => {
     GROUP BY p.id, ip.url_imagen
     ORDER BY p.id;
 `);
-
+        console.log('[getProductosConImagenes] llamada desde', req.headers.origin);
 
         const productosAgrupados = results.reduce((acc, producto) => {
             const existente = acc.find(p => p.id === producto.id);
@@ -50,7 +50,8 @@ const getProductosConImagenes = async (req, res) => {
 
         res.json(productosAgrupados);
     } catch (err) {
-        console.error("Error al obtener productos:", err);
+        console.error("Error al obtener productos:", err.message, err.stack);
+
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
