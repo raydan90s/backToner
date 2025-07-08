@@ -156,6 +156,54 @@ const obtenerProductoPorId = async (req, res) => {
     }
 };
 
+// Backend: Obtener producto por slug
+const obtenerProductoPorSlug = async (req, res) => {
+  const { slug } = req.params;
+
+  try {
+    // Buscamos el producto por slug
+    const [results] = await pool.query(`
+      SELECT
+        p.id,
+        p.nombre AS name,
+        p.tipo AS category,
+        p.descripcion AS description,
+        p.precio AS price,
+        mo.nombre AS model,
+        m.nombre AS brand,
+        p.estado,
+        ip.url_imagen,
+        SUM(ipr.stock) AS stock
+      FROM producto p
+      LEFT JOIN modelo mo ON p.id_modelo = mo.id
+      LEFT JOIN marcas m ON mo.id_marca = m.id
+      LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
+      LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
+      WHERE p.nombre = ?
+      GROUP BY p.id, ip.url_imagen
+    `, [slug]);
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+
+    const producto = results[0];  // Tomamos el primer resultado
+    const slugGenerado = generateSlug(producto.name);  // Generamos el slug
+
+    // Devolvemos el producto con su id y slug
+    const productoFormateado = {
+      ...producto,
+      slug: slugGenerado,  // Incluimos el slug
+      images: results.map((item) => item.url_imagen).filter(Boolean),
+    };
+
+    res.json(productoFormateado);  // Devolvemos el producto con el slug
+  } catch (err) {
+    console.error('Error al obtener producto por slug:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 
 const createProducto = async (req, res) => {
     const conn = await pool.getConnection();
@@ -442,6 +490,7 @@ module.exports = {
     eliminarProducto,
     activarProducto,
     obtenerProductoPorId,
+    obtenerProductoPorSlug,
     createProducto,
     updateProducto,
 };

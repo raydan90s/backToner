@@ -7,7 +7,8 @@ const {
   activarProducto,   
   obtenerProductoPorId,   
   createProducto,   
-  updateProducto, 
+  updateProducto,
+  obtenerProductoPorSlug 
 } = require('./products'); 
 
 const {   
@@ -66,6 +67,8 @@ router.put('/productos/:id/activar', activarProducto);
 router.get('/productos/por/:id', obtenerProductoPorId);  
 router.post('/productos', createProducto);  
 router.put('/productos/:id', updateProducto); 
+router.get('/productos/por-slug/:slug', obtenerProductoPorSlug);
+
 
 // Auth 
 router.post('/registrar', registrarUsuarioPublico); 
