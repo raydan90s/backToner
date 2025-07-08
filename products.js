@@ -156,12 +156,11 @@ const obtenerProductoPorId = async (req, res) => {
     }
 };
 
-// Backend: Obtener producto por slug
 const obtenerProductoPorSlug = async (req, res) => {
   const { slug } = req.params;
 
   try {
-    // Buscamos el producto por slug
+    // Consultar todos los productos, esto puede ser ineficiente si tienes muchos productos
     const [results] = await pool.query(`
       SELECT
         p.id,
@@ -179,22 +178,26 @@ const obtenerProductoPorSlug = async (req, res) => {
       LEFT JOIN marcas m ON mo.id_marca = m.id
       LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
       LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
-      WHERE p.nombre = ?
       GROUP BY p.id, ip.url_imagen
-    `, [slug]);
+    `);
 
-    if (results.length === 0) {
+    // Buscar el producto cuyo slug coincida
+    const producto = results.find(product => generateSlug(product.name) === slug);
+
+    if (!producto) {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
 
-    const producto = results[0];  // Tomamos el primer resultado
-    const slugGenerado = generateSlug(producto.name);  // Generamos el slug
+    // Generar el slug nuevamente para asegurarnos de que coincida
+    const slugGenerado = generateSlug(producto.name);
 
-    // Devolvemos el producto con su id y slug
+    // Formatear el producto para incluir el slug y las imágenes
     const productoFormateado = {
       ...producto,
-      slug: slugGenerado,  // Incluimos el slug
-      images: results.map((item) => item.url_imagen).filter(Boolean),
+      slug: slugGenerado,  // Aseguramos que el slug se incluye correctamente
+      images: results
+        .map((item) => item.url_imagen)
+        .filter(Boolean),  // Solo incluimos las imágenes no vacías
     };
 
     res.json(productoFormateado);  // Devolvemos el producto con el slug
