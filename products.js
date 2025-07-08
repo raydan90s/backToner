@@ -3,30 +3,33 @@ const pool = require('./db');
 const getProductosConImagenes = async (req, res) => {
     try {
         const [results] = await pool.query(`
-    SELECT
-        p.id,
-        p.nombre AS name,
-        p.tipo AS category,
-        p.descripcion AS description,
-        p.precio AS price,
-        mo.nombre AS model,
-        m.nombre AS brand,
-        p.estado,
-        ip.url_imagen,
-        SUM(ipr.stock) AS stock
-    FROM producto p
-    LEFT JOIN modelo mo ON p.id_modelo = mo.id
-    LEFT JOIN marcas m ON mo.id_marca = m.id
-    LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
-    LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
-    GROUP BY p.id, ip.url_imagen
-    ORDER BY p.id;
-`);
+        SELECT
+            p.id,
+            p.nombre AS name,
+            p.tipo AS category,
+            p.descripcion AS description,
+            p.precio AS price,
+            mo.nombre AS model,
+            m.nombre AS brand,
+            p.estado,
+            ip.url_imagen,
+            SUM(ipr.stock) AS stock
+        FROM producto p
+        LEFT JOIN modelo mo ON p.id_modelo = mo.id
+        LEFT JOIN marcas m ON mo.id_marca = m.id
+        LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
+        LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
+        GROUP BY p.id, ip.url_imagen
+        ORDER BY p.id;
+        `);
 
-
+        // Agrupar productos y generar el slug
         const productosAgrupados = results.reduce((acc, producto) => {
             const existente = acc.find(p => p.id === producto.id);
             const imagen = producto.url_imagen ? { url: producto.url_imagen } : null;
+
+            // Generamos el slug aquí
+            const slug = generateSlug(producto.name);
 
             if (existente) {
                 if (imagen) existente.images.push(imagen);
@@ -34,6 +37,7 @@ const getProductosConImagenes = async (req, res) => {
                 acc.push({
                     id: producto.id,
                     name: producto.name,
+                    slug: slug,  // Agregar slug aquí
                     category: producto.category,
                     description: producto.description,
                     price: producto.price,
@@ -94,28 +98,26 @@ const obtenerProductoPorId = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const [results] = await pool.query(
-            `SELECT
-        p.id,
-        p.nombre AS name,
-        p.tipo AS category,
-        p.descripcion AS description,
-        p.precio AS price,
-        mo.nombre AS model,
-        p.estado,
-        m.nombre AS brand,
-        ip.url_imagen,
-        SUM(ipr.stock) AS stock
-    FROM producto p
-    LEFT JOIN modelo mo ON p.id_modelo = mo.id
-    LEFT JOIN marcas m ON mo.id_marca = m.id
-    LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
-    LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
-    WHERE p.id = ?
-    GROUP BY p.id, ip.url_imagen`,
-            [id]
-        );
-
+        const [results] = await pool.query(`
+        SELECT
+            p.id,
+            p.nombre AS name,
+            p.tipo AS category,
+            p.descripcion AS description,
+            p.precio AS price,
+            mo.nombre AS model,
+            p.estado,
+            m.nombre AS brand,
+            ip.url_imagen,
+            SUM(ipr.stock) AS stock
+        FROM producto p
+        LEFT JOIN modelo mo ON p.id_modelo = mo.id
+        LEFT JOIN marcas m ON mo.id_marca = m.id
+        LEFT JOIN imagenes_producto ip ON p.id = ip.id_producto
+        LEFT JOIN inventario_producto ipr ON p.id = ipr.id_producto
+        WHERE p.id = ?
+        GROUP BY p.id, ip.url_imagen
+        `, [id]);
 
         if (results.length === 0) {
             return res.status(404).json({ message: 'Producto no encontrado' });
@@ -123,10 +125,15 @@ const obtenerProductoPorId = async (req, res) => {
 
         const productoFormateado = results.reduce((acc, item) => {
             const imagen = item.url_imagen ? { url: item.url_imagen } : null;
+
+            // Generamos el slug aquí
+            const slug = generateSlug(item.name);
+
             if (!acc) {
                 return {
                     id: item.id,
                     name: item.name,
+                    slug: slug,  // Agregar slug aquí
                     category: item.category,
                     description: item.description,
                     price: item.price,
@@ -148,6 +155,7 @@ const obtenerProductoPorId = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
 
 const createProducto = async (req, res) => {
     const conn = await pool.getConnection();
@@ -264,7 +272,6 @@ const createProducto = async (req, res) => {
         conn.release();
     }
 };
-
 
 
 const updateProducto = async (req, res) => {
@@ -422,6 +429,13 @@ const updateProducto = async (req, res) => {
     }
 };
 
+function generateSlug(name) {
+    return name
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '')  // Elimina caracteres no alfanuméricos
+        .replace(/\s+/g, '-')      // Reemplaza los espacios por guiones
+        .replace(/-+/g, '-');      // Elimina guiones múltiples
+}
 
 module.exports = {
     getProductosConImagenes,
