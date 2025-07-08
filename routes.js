@@ -1,6 +1,5 @@
 const express = require('express'); 
 const router = express.Router(); 
-const asyncHandler = require('./utils/asyncHandler');
 
 const {   
   getProductosConImagenes,   
@@ -8,7 +7,8 @@ const {
   activarProducto,   
   obtenerProductoPorId,   
   createProducto,   
-  updateProducto, 
+  updateProducto,
+  obtenerProductoPorSlug 
 } = require('./products'); 
 
 const {   
@@ -60,13 +60,15 @@ const { getHistorialPedidos } = require("./historialCompras");
 
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
-// Productos
-router.get('/productos-con-imagenes', asyncHandler(getProductosConImagenes));
-router.put('/productos/:id/inactivar', asyncHandler(eliminarProducto));
-router.put('/productos/:id/activar', asyncHandler(activarProducto));
-router.get('/productos/por/:id', asyncHandler(obtenerProductoPorId));
-router.post('/productos', asyncHandler(createProducto));
-router.put('/productos/:id', asyncHandler(updateProducto));
+// Productos 
+router.get('/productos-con-imagenes', getProductosConImagenes); 
+router.put('/productos/:id/inactivar', eliminarProducto); 
+router.put('/productos/:id/activar', activarProducto); 
+router.get('/productos/por/:id', obtenerProductoPorId);  
+router.post('/productos', createProducto);  
+router.put('/productos/:id', updateProducto); 
+router.get('/productos/por-slug/:slug', obtenerProductoPorSlug);
+
 
 // Auth 
 router.post('/registrar', registrarUsuarioPublico); 
