@@ -3,14 +3,20 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const router = require('./routes');
 const morgan = require('morgan');
+const { swaggerUi, swaggerSpec } = require('./swagger');
+
 
 require("dotenv").config();
 
 
 const app = express();
 
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:5000',
   'http://localhost:5173',
   'https://tonerexpress-ec.com',
   'https://www.tonerexpress-ec.com',

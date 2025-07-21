@@ -60,6 +60,8 @@ const { getHistorialPedidos } = require("./historialCompras");
 
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
+const { crearCheckout, consultarPago } = require("./datafast");
+
 // Productos 
 router.get('/productos-con-imagenes', getProductosConImagenes); 
 router.put('/productos/:id/inactivar', eliminarProducto); 
@@ -168,5 +170,61 @@ router.get("/permissions/:id_usuario", getUserPermissions);
 
 // ✅ NUEVA RUTA: HISTORIAL DE PEDIDOS
 router.get('/historial-pedidos', getHistorialPedidos);
+
+/**
+ * @swagger
+ * /checkout:
+ *   post:
+ *     summary: Genera un checkoutId de Datafast
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               amount:
+ *                 type: string
+ *                 example: "92.00"
+ *     responses:
+ *       200:
+ *         description: CheckoutId generado
+ *       500:
+ *         description: Error al generar checkoutId
+ */
+router.post('/checkout', crearCheckout)
+
+/**
+ * @swagger
+ * /checkout/resultado:
+ *   get:
+ *     summary: Consulta el resultado de un pago usando el checkoutId
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID del checkout recibido desde Datafast
+ *     responses:
+ *       200:
+ *         description: Detalles del estado de pago
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: object
+ *                   properties:
+ *                     code:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *       500:
+ *         description: Error al consultar estado de pago
+ */
+router.get('/checkout/resultado', consultarPago);
+
 
 module.exports = router;
