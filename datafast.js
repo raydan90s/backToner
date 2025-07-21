@@ -32,9 +32,13 @@ const crearCheckout = async (req, res) => {
 const consultarPago = async (req, res) => {
     const { id } = req.query;
 
+    if (!id) {
+        return res.status(400).json({ error: "Falta el parámetro 'id'" });
+    }
+
     try {
         const response = await axios.get(
-            `https://teAst.oppwa.com/v1/checkout/${id}/payment`,
+            `https://eu-test.oppwa.com/v1/checkouts/${id}/payment`,
             {
                 headers: {
                     Authorization: 'Bearer OGE4Mjk0MTg1MzNjZjMxZDAxNTMzZDA2ZmQwNDA3NDh8WHQ3RjIyUUVOWA==',
@@ -42,15 +46,15 @@ const consultarPago = async (req, res) => {
                 params: {
                     entityId: '8a829418533cf31d01533d06f2ee06fa',
                 },
-
             }
         );
-        console.log("Consultando checkoutId:", req.query.id);
 
+        console.log("✅ Consultando checkoutId:", id);
         res.json(response.data);
+
     } catch (err) {
-        console.error("Error al consultar pago:", err.response?.data || err.message);
-        res.status(500).json({ error: 'Error al consultar estado de pago' });
+        console.error("❌ Error al consultar pago:", err.response?.data || err.message);
+        res.status(500).json({ error: "Error al consultar estado de pago" });
     }
 };
 
