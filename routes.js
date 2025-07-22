@@ -60,7 +60,7 @@ const { getHistorialPedidos } = require("./historialCompras");
 
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
-const { crearCheckout, consultarPago } = require("./datafast");
+const { crearCheckout, consultarPagoHandler } = require("./datafast");
 
 // Productos 
 router.get('/productos-con-imagenes', getProductosConImagenes); 
@@ -224,7 +224,7 @@ router.post('/checkout', crearCheckout)
  *       500:
  *         description: Error al consultar estado de pago
  */
-router.get('/checkout/resultado', consultarPago);
+router.get('/checkout/resultado', consultarPagoHandler);
 
 
 module.exports = router;
