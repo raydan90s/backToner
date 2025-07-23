@@ -93,7 +93,6 @@ router.post('/logout', (req, res) => {
 router.get("/usuario", getUsuarioByEmail);
 router.put("/usuario/rol", updateRolUsuario);
 router.put("/usuario/permisos", updatePermisosUsuario);
-router.post('/registrar', registrarUsuarioPublico);
 router.post('/registrar', registrarUsuarioPublico)
 router.post('/registrar/admin', verifyToken, checkRole('SuperAdmin'), registrarUsuarioAdmin);
 router.post('/login', inicioSesion);
