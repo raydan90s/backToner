@@ -60,7 +60,7 @@ const { getHistorialPedidos } = require("./historialCompras");
 
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
-const { crearCheckout, consultarPagoHandler } = require("./datafast");
+const { crearCheckout, consultarPagoHandler, obtenerIpCliente } = require("./datafast");
 
 // Productos 
 router.get('/productos-con-imagenes', getProductosConImagenes); 
@@ -226,5 +226,6 @@ router.post('/checkout', crearCheckout)
  */
 router.get('/checkout/resultado', consultarPagoHandler);
 
+router.get('/cliente-ip', obtenerIpCliente); 
 
 module.exports = router;

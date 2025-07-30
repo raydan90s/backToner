@@ -122,6 +122,8 @@ const getCartItemsDB = async (req, res) => {
 };
 
 const vaciarCarritoDB = async (req, res) => {
+  console.log('Cuerpo recibido:', req.body);  // Esto te ayudará a verificar si id_usuario está llegando correctamente
+
   const { id_usuario } = req.body;
 
   if (!id_usuario) {

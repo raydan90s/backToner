@@ -168,7 +168,6 @@ const obtenerIpCliente = (req, res) => {
   res.json({ ip });
 };
 
-
 module.exports = {
   consultarPagoHandler,
   crearCheckout,
