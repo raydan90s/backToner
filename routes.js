@@ -105,6 +105,7 @@ router.get('/cart', getCartItemsDB);
 router.post('/cart/add', agregarAlCarritoDB); 
 router.put('/cart/update/:productId', actualizarCantidadDB); 
 router.delete('/cart/remove/:productId', eliminarItemDB);   
+router.post('/carrito/vaciar', vaciarCarritoDB);
 
 // Marcas 
 router.route("/marcas")   
