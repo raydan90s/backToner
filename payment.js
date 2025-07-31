@@ -31,7 +31,7 @@ const registrarPago = async (req, res) => {
 
         // Insertar el pago en la base de datos
         const query = `
-            INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id)
+            INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuarioCorreo, usuario_id)
             VALUES (?, ?, ?, ?, NOW(), ?)
         `;
 
@@ -66,9 +66,9 @@ const registrarPago = async (req, res) => {
 
                 console.log(`🔄 Insertando detalle de pedido para producto ID: ${producto.id}`);
                 await pool.execute(`
-                    INSERT INTO detalle_pedido (id_pedido, id_producto, cantidad, precio_unitario)
-                    VALUES (?, ?, ?, ?)
-                `, [pedidoId, producto.id, producto.cantidad, producto.precio]);
+                    INSERT INTO detalle_pedido (id_pedido, id_producto, cantidad)
+                    VALUES (?, ?, ?)
+                `, [pedidoId, producto.id, producto.cantidad]);
             }
         }
 
