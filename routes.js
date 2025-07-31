@@ -61,6 +61,8 @@ const { getHistorialPedidos } = require("./historialCompras");
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
 const { crearCheckout, consultarPagoHandler, obtenerIpCliente } = require("./datafast");
+const registrarPago = require('./payments');  // Asegúrate de importar correctamente la función
+
 
 // Productos 
 router.get('/productos-con-imagenes', getProductosConImagenes); 
@@ -227,5 +229,8 @@ router.post('/checkout', crearCheckout)
 router.get('/checkout/resultado', consultarPagoHandler);
 
 router.get('/cliente-ip', obtenerIpCliente); 
+
+router.post('/procesar-pago', registrarPago);  // Usa registrarPago como función
+
 
 module.exports = router;

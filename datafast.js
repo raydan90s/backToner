@@ -11,7 +11,11 @@ const PSERV = process.env.SHOPPER_PSERV;
 const version = process.env.SHOPPER_VERSIONDF;
 const ECI = process.env.SHOPPER_ECI;
 
+// Función para consultar el estado del pago
 const request = (resourcePath, callback) => {
+  // Construir la URL completa con el resourcePath
+  const url = `https://eu-test.oppwa.com${resourcePath}?entityId=${entityId}`;
+
   const options = {
     hostname: 'eu-test.oppwa.com',
     path: `${resourcePath}?entityId=${entityId}`,
@@ -52,10 +56,20 @@ const request = (resourcePath, callback) => {
 const consultarPagoHandler = async (req, res) => {
   const { id } = req.query;
 
+  console.log("🔁 Recurso recibido:", id);
+
+  // Llamamos a la función request con el ID recibido para consultar el estado
   request(id, (responseData) => {
     // Si hay algún error o no se pudo obtener respuesta
     if (responseData.error) {
       return res.status(400).json({ error: responseData.error });
+    }
+
+    // En caso de éxito, respondemos con la data procesada
+    console.log("✅ Resultado de la consulta:", responseData);
+    if (responseData.result?.code && responseData.result.code.startsWith('000')) {
+      const redirectUrl = responseData.result?.redirectUrl || '/http://localhost:5173/productos'; // Si no hay URL, usa una predeterminada
+      responseData.result.redirectUrl = redirectUrl;
     }
     res.json(responseData);
   });
@@ -75,6 +89,8 @@ const crearCheckout = async (req, res) => {
       merchantTransactionId,
       customParameters // base0, base12, iva
     } = req.body;
+
+    console.log("📥 Cuerpo recibido en /api/checkout:", JSON.stringify(req.body, null, 2));
 
     const dataObject = {
       entityId,
@@ -115,6 +131,8 @@ const crearCheckout = async (req, res) => {
     });
 
     const data = querystring.stringify(dataObject);
+    console.log("📤 Datos formateados para Datafast:", data);
+
     const options = {
       host,
       path: '/v1/checkouts',
@@ -130,6 +148,10 @@ const crearCheckout = async (req, res) => {
       let result = '';
       response.on('data', chunk => result += chunk);
       response.on('end', () => {
+        console.log("Status Code Datafast:", response.statusCode);
+        console.log("Headers Datafast:", response.headers);
+        console.log("Respuesta cruda Datafast:", result);
+
         if (response.statusCode && response.statusCode >= 400) {
           // Si es error HTTP, enviamos el texto plano para ayudar a identificar el problema
           return res.status(response.statusCode).send({ error: result });
@@ -161,12 +183,14 @@ const obtenerIpCliente = (req, res) => {
     req.connection?.remoteAddress ||
     null;
 
+  // Si estás en entorno local (IPv6 ::1 o IPv4 127.0.0.1), usa una IP pública simulada
   if (ip === '::1' || ip === '127.0.0.1' || ip?.startsWith('::ffff:127.0.0.1')) {
-    ip = '186.46.123.22'; 
+    ip = '186.46.123.22'; // Puedes poner cualquier IP pública válida de Ecuador o de tu ISP
   }
 
   res.json({ ip });
 };
+
 
 module.exports = {
   consultarPagoHandler,
