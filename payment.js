@@ -2,19 +2,24 @@ const bcrypt = require('bcryptjs');  // Importar bcryptjs
 const pool = require('./db');  // Importar la conexión a la base de datos
 
 const registrarPago = async (req, res) => {
-    const { resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito } = req.body;
+    const { resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito, direccionEnvio } = req.body;
 
     // Verificar que los datos necesarios estén presentes
     console.log('Datos recibidos:', req.body); // Verificar los datos recibidos del frontend
-    if (!productosCarrito || !productosCarrito.total || !productosCarrito.productos || !usuarioId) {
+    if (!productosCarrito || !productosCarrito.total || !productosCarrito.productos || !usuarioId || !direccionEnvio) {
         console.error("❌ Faltan datos obligatorios");
         return res.status(400).json({ success: false, error: "Faltan datos obligatorios (productosCarrito o usuarioId)." });
     }
 
     // Reemplazar valores undefined por null
-    const direccionEnvio = productosCarrito.direccionEnvio || null;  // Asegúrate de que direccionEnvio no sea undefined
-    const total = productosCarrito.total || 0;  // Asegúrate de que total no sea undefined
-    const productos = productosCarrito.productos || []; // Si no hay productos, enviar un array vacío
+    const direccion = direccionEnvio || null;  
+    const provincia = direccion.provincia || null;           
+    const ciudad = direccion.ciudad || null;     
+    const numeroIdentificacion = direccion.numeroIdentificacion;
+    const numeroTelefono = direccion.numeroTelefono;
+    const nombrePedido = direccion.nombrePedido;            
+    const total = productosCarrito.total || 0;  
+    const productos = productosCarrito.productos || []; 
 
     if (!total || productos.length === 0) {
         console.error("❌ El carrito está vacío o el total es inválido");
@@ -31,7 +36,7 @@ const registrarPago = async (req, res) => {
 
         // Insertar el pago en la base de datos
         const query = `
-            INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuarioCorreo, usuario_id)
+            INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id)
             VALUES (?, ?, ?, ?, NOW(), ?)
         `;
 
@@ -50,9 +55,9 @@ const registrarPago = async (req, res) => {
         if (esExitoso) {
             console.log("🛒 Registrando el pedido...");
             const [pedidoResult] = await pool.execute(`
-                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio)
-                VALUES (?, NOW(), 'En proceso', ?, ?)
-            `, [usuarioId, total, direccionEnvio]);
+                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido)
+                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?)
+            `, [usuarioId, total, direccionEnvio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido]);
 
             console.log("✅ Pedido registrado:", pedidoResult);
 
@@ -81,6 +86,7 @@ const registrarPago = async (req, res) => {
         res.status(500).json({ success: false, error: 'Error interno del servidor.' });
     }
 };
+
 
 
 
