@@ -17,6 +17,7 @@ const registrarPago = async (req, res) => {
     const numeroIdentificacion = direccionEnvio.cedula || null;
     const numeroTelefono = direccionEnvio.telefono || null;
     const nombrePedido = `${direccionEnvio.nombre} ${direccionEnvio.apellido}` || null; 
+    const nota = direccionEnvio.notas;
     const total = productosCarrito.total || 0; 
     const productos = productosCarrito.productos || []; 
 
@@ -62,11 +63,12 @@ const registrarPago = async (req, res) => {
             const encryptedNumeroIdentificacion = await bcrypt.hash(numeroIdentificacion, 10);
             const encryptedNumeroTelefono = await bcrypt.hash(numeroTelefono, 10);
             const encryptedNombrePedido = await bcrypt.hash(nombrePedido, 10);
+            const encryptedNota = await bcrypt.hash(nota, 10);
 
             console.log("🛒 Registrando el pedido...");
             const [pedidoResult] = await pool.execute(`
-                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido)
-                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota)
+                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 usuarioId,
                 total, // Se inserta el valor numérico, no el encriptado
@@ -75,7 +77,8 @@ const registrarPago = async (req, res) => {
                 encryptedCiudad,
                 encryptedNumeroIdentificacion,
                 encryptedNumeroTelefono,
-                encryptedNombrePedido
+                encryptedNombrePedido,
+                encryptedNota,
             ]);
 
             console.log("✅ Pedido registrado:", pedidoResult);
