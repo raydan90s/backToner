@@ -207,7 +207,6 @@ const obtenerProductoPorSlug = async (req, res) => {
   }
 };
 
-
 const createProducto = async (req, res) => {
     const conn = await pool.getConnection();
     try {
@@ -323,7 +322,6 @@ const createProducto = async (req, res) => {
         conn.release();
     }
 };
-
 
 const updateProducto = async (req, res) => {
     const { id } = req.params;
