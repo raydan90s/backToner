@@ -1,25 +1,44 @@
-const bcrypt = require('bcryptjs'); // Importar bcryptjs
+const crypto = require('crypto');  // Importar el módulo de cifrado
 const pool = require('./db'); // Importar la conexión a la base de datos
+require('dotenv').config(); // Cargar las variables del archivo .env
 
+const secretKey = process.env.SECRET_KEY_ENCRYPTATION; // Obtener la clave secreta
+
+// Función de cifrado
+const cifrar = (texto) => {
+    // Crear un IV aleatorio de 16 bytes (aes-256-cbc requiere 16 bytes de IV)
+    const iv = crypto.randomBytes(16);
+
+    // Crear el cifrador utilizando 'aes-256-cbc', la clave secreta y el IV
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secretKey, 'hex'), iv);
+
+    // Cifrar el texto
+    let cifrado = cipher.update(texto, 'utf8', 'hex');
+    cifrado += cipher.final('hex');
+
+    // Retornamos el IV y el texto cifrado concatenados
+    return iv.toString('hex') + ':' + cifrado;
+};
+
+
+// Función para registrar un pago y crear un pedido si el pago es exitoso
 const registrarPago = async (req, res) => {
     const { resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito, direccionEnvio } = req.body;
 
-    // Verificar que los datos necesarios estén presentes
-    console.log('Datos recibidos:', req.body); // Verificar los datos recibidos del frontend
     if (!productosCarrito || !productosCarrito.total || !productosCarrito.productos || !usuarioId || !direccionEnvio) {
         console.error("❌ Faltan datos obligatorios");
         return res.status(400).json({ success: false, error: "Faltan datos obligatorios (productosCarrito, usuarioId o direccionEnvio)." });
     }
 
-    const direccionCalle = direccionEnvio.direccion || null; 
-    const provincia = direccionEnvio.provincia || null;       
-    const ciudad = direccionEnvio.ciudad || null;       
+    const direccionCalle = direccionEnvio.direccion || null;
+    const provincia = direccionEnvio.provincia || null;
+    const ciudad = direccionEnvio.ciudad || null;
     const numeroIdentificacion = direccionEnvio.cedula || null;
     const numeroTelefono = direccionEnvio.telefono || null;
-    const nombrePedido = `${direccionEnvio.nombre} ${direccionEnvio.apellido}` || null; 
+    const nombrePedido = `${direccionEnvio.nombre} ${direccionEnvio.apellido}` || null;
     const nota = direccionEnvio.notas;
-    const total = productosCarrito.total || 0; 
-    const productos = productosCarrito.productos || []; 
+    const total = productosCarrito.total || 0;
+    const productos = productosCarrito.productos || [];
 
     if (!total || productos.length === 0) {
         console.error("❌ El carrito está vacío o el total es inválido");
@@ -27,20 +46,16 @@ const registrarPago = async (req, res) => {
     }
 
     try {
-        // Encriptar los datos sensibles (estado y código de pago) antes de guardarlos.
-        // Esto es una medida de seguridad crucial.
-        console.log("🔒 Encriptando datos de pago sensibles...");
-        const encryptedEstadoPago = await bcrypt.hash(estadoPago, 10);
-        const encryptedCodigoPago = await bcrypt.hash(codigoPago, 10);
+        // Cifrar los datos sensibles antes de guardarlos
+        const encryptedEstadoPago = cifrar(estadoPago);
+        const encryptedCodigoPago = cifrar(codigoPago);
 
         // Insertar el pago en la base de datos
-        // NOTA: 'usuario_id' se inserta sin encriptar, ya que es un ID de referencia.
         const query = `
-            INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id)
-            VALUES (?, ?, ?, ?, NOW(), ?)
-        `;
+      INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id)
+      VALUES (?, ?, ?, ?, NOW(), ?)
+    `;
 
-        console.log("📤 Insertando pago en la base de datos...");
         const [result] = await pool.execute(query, [
             resourcePath,
             encryptedEstadoPago,
@@ -51,47 +66,36 @@ const registrarPago = async (req, res) => {
 
         console.log("✅ Pago insertado:", result);
 
-        // Si el pago fue exitoso, registrar el pedido.
         if (esExitoso) {
-            // NOTA IMPORTANTE: El campo `total` se guarda sin encriptar,
-            // ya que la columna en la base de datos es de tipo numérico (FLOAT).
-            // Los demás campos sensibles del pedido se encriptan como solicitaste.
-            console.log("🔒 Encriptando datos del pedido (excepto el total)...");
-            const encryptedDireccionCalle = await bcrypt.hash(direccionCalle, 10);
-            const encryptedProvincia = await bcrypt.hash(provincia, 10);
-            const encryptedCiudad = await bcrypt.hash(ciudad, 10);
-            const encryptedNumeroIdentificacion = await bcrypt.hash(numeroIdentificacion, 10);
-            const encryptedNumeroTelefono = await bcrypt.hash(numeroTelefono, 10);
-            const encryptedNombrePedido = await bcrypt.hash(nombrePedido, 10);
-            const encryptedNota = await bcrypt.hash(nota, 10);
+            // Cifrar los datos del pedido
+            const encryptedDireccionCalle = cifrar(direccionCalle);
+            const encryptedProvincia = cifrar(provincia);
+            const encryptedCiudad = cifrar(ciudad);
+            const encryptedNumeroIdentificacion = cifrar(numeroIdentificacion);
+            const encryptedNumeroTelefono = cifrar(numeroTelefono);
+            const encryptedNombrePedido = cifrar(nombrePedido);
+            const encryptedNota = cifrar(nota);
 
-            console.log("🛒 Registrando el pedido...");
+            // Registrar el pedido en la base de datos
             const [pedidoResult] = await pool.execute(`
                 INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota)
                 VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 usuarioId,
-                total, // Se inserta el valor numérico, no el encriptado
+                total, // El total no es cifrado
                 encryptedDireccionCalle,
                 encryptedProvincia,
                 encryptedCiudad,
                 encryptedNumeroIdentificacion,
                 encryptedNumeroTelefono,
                 encryptedNombrePedido,
-                encryptedNota,
+                encryptedNota
             ]);
 
             console.log("✅ Pedido registrado:", pedidoResult);
 
             const pedidoId = pedidoResult.insertId;
             for (let producto of productos) {
-                // Verificar que cada producto tenga los datos necesarios
-                if (!producto.id || !producto.cantidad || !producto.precio) {
-                    console.error("❌ Faltan datos del producto");
-                    return res.status(400).json({ success: false, error: "Faltan datos del producto" });
-                }
-
-                // NOTA: 'id_pedido' y 'id_producto' se insertan sin encriptar para mantener las relaciones de la base de datos.
                 await pool.execute(`
                     INSERT INTO detalle_pedido (id_pedido, id_producto, cantidad)
                     VALUES (?, ?, ?)
@@ -99,11 +103,8 @@ const registrarPago = async (req, res) => {
             }
         }
 
-        // Responder con éxito
-        console.log("✅ Pago registrado correctamente");
-        res.status(200).json({ success: true, message: 'Pago registrado correctamente' });
+        return res.status(200).json({ success: true, message: 'Pago registrado correctamente' });
     } catch (error) {
-        // Manejar errores
         console.error('❌ Error al registrar el pago:', error);
         res.status(500).json({ success: false, error: 'Error interno del servidor.' });
     }

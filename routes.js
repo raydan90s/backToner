@@ -172,7 +172,7 @@ router.get("/permissions/:id_usuario", getUserPermissions);
 
 // ✅ NUEVA RUTA: HISTORIAL DE PEDIDOS
 router.get('/historial-pedidos', getHistorialPedidos);
-router.get('/api/pedidos/:id_pedido/detalles', getDetallePedido); // Ruta para obtener los detalles de un pedido específico
+router.get('/pedidos/:id_pedido/detalles', getDetallePedido); // Ruta para obtener los detalles de un pedido específico
 
 /**
  * @swagger
