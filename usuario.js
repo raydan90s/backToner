@@ -4,9 +4,11 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const registrarUsuarioPublico = async (req, res) => {
-    const { nombre, apellido, email, password } = req.body;
+    const { name, apellido, email, password } = req.body;
 
-    if (!nombre || !email || !password) {
+    console.log(req.body);
+
+    if (!name || !email || !password) {
         return res.status(400).json({ message: 'Nombre, correo electrónico y contraseña son requeridos.' });
     }
 
@@ -21,7 +23,7 @@ const registrarUsuarioPublico = async (req, res) => {
         // 2. Hashear la contraseña
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const nombreCompleto = `${nombre} ${apellido || ''}`.trim();
+        const nombreCompleto = `${name} ${apellido || ''}`.trim();
 
         // 3. Insertar nuevo usuario
         const [insertResult] = await pool.query(
