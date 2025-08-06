@@ -60,7 +60,7 @@ const { getHistorialPedidos, getDetallePedido } = require("./historialCompras");
 
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
-const { crearCheckout, consultarPagoHandler, obtenerIpCliente } = require("./datafast");
+const { crearCheckout, consultarPagoHandler, obtenerIpCliente, anularPagoHandler } = require("./datafast");
 const registrarPago = require('./payment');
 
 
@@ -174,44 +174,32 @@ router.get("/permissions/:id_usuario", getUserPermissions);
 router.get('/historial-pedidos', getHistorialPedidos);
 router.get('/pedidos/:id_pedido/detalles', getDetallePedido); // Ruta para obtener los detalles de un pedido específico
 
+
+//DATAFAST
+router.post('/checkout', crearCheckout)
+
+router.get('/checkout/resultado', consultarPagoHandler);
+
 /**
  * @swagger
- * /checkout:
+ * /checkout/anular:
  *   post:
- *     summary: Genera un checkoutId de Datafast
+ *     summary: Anula un pago previo
+ *     description: Utiliza el `id_pago` de la transacción para anular un pago y actualizar los estados en las tablas de `pagos` y `pedidos`.
  *     requestBody:
+ *       description: El `id_pago` de la transacción a anular.
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
- *               amount:
+ *               id_pago:
  *                 type: string
- *                 example: "92.00"
+ *                 description: El identificador del pago que se va a anular.
  *     responses:
  *       200:
- *         description: CheckoutId generado
- *       500:
- *         description: Error al generar checkoutId
- */
-router.post('/checkout', crearCheckout)
-
-/**
- * @swagger
- * /checkout/resultado:
- *   get:
- *     summary: Consulta el resultado de un pago usando el checkoutId
- *     parameters:
- *       - in: query
- *         name: id
- *         schema:
- *           type: string
- *         required: true
- *         description: ID del checkout recibido desde Datafast
- *     responses:
- *       200:
- *         description: Detalles del estado de pago
+ *         description: Respuesta exitosa con los detalles de la anulación.
  *         content:
  *           application/json:
  *             schema:
@@ -222,16 +210,22 @@ router.post('/checkout', crearCheckout)
  *                   properties:
  *                     code:
  *                       type: string
+ *                       description: Código de respuesta del sistema de pagos.
  *                     description:
  *                       type: string
+ *                       description: Descripción del estado de la anulación.
+ *       400:
+ *         description: Error por falta del `id_pago`.
  *       500:
- *         description: Error al consultar estado de pago
+ *         description: Error al procesar la solicitud de anulación.
  */
-router.get('/checkout/resultado', consultarPagoHandler);
+router.post('/checkout/anular', anularPagoHandler);
 
+
+//PAGOS
 router.get('/cliente-ip', obtenerIpCliente);
 
-router.post('/payment', registrarPago);  // Usa registrarPago como función
+router.post('/payment', registrarPago);
 
 
 module.exports = router;

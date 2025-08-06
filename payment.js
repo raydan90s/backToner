@@ -23,7 +23,7 @@ const cifrar = (texto) => {
 
 // Función para registrar un pago y crear un pedido si el pago es exitoso
 const registrarPago = async (req, res) => {
-    const { resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito, direccionEnvio } = req.body;
+    const { resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito, direccionEnvio, id_pago } = req.body;
 
     if (!productosCarrito || !productosCarrito.total || !productosCarrito.productos || !usuarioId || !direccionEnvio) {
         console.error("❌ Faltan datos obligatorios");
@@ -52,8 +52,8 @@ const registrarPago = async (req, res) => {
 
         // Insertar el pago en la base de datos
         const query = `
-      INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id)
-      VALUES (?, ?, ?, ?, NOW(), ?)
+      INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id, id_pago)
+      VALUES (?, ?, ?, ?, NOW(), ?, ?)
     `;
 
         const [result] = await pool.execute(query, [
@@ -61,8 +61,12 @@ const registrarPago = async (req, res) => {
             encryptedEstadoPago,
             encryptedCodigoPago,
             esExitoso ? 1 : 0,
-            usuarioId
+            usuarioId,
+            id_pago
         ]);
+
+        const pago_id = result.insertId;  // Obtener el ID del pago recién insertado
+
 
         console.log("✅ Pago insertado:", result);
 
@@ -78,8 +82,8 @@ const registrarPago = async (req, res) => {
 
             // Registrar el pedido en la base de datos
             const [pedidoResult] = await pool.execute(`
-                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota)
-                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota, id_pago)
+                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 usuarioId,
                 total, // El total no es cifrado
@@ -89,7 +93,8 @@ const registrarPago = async (req, res) => {
                 encryptedNumeroIdentificacion,
                 encryptedNumeroTelefono,
                 encryptedNombrePedido,
-                encryptedNota
+                encryptedNota,
+                pago_id
             ]);
 
             console.log("✅ Pedido registrado:", pedidoResult);

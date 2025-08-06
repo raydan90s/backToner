@@ -1,4 +1,5 @@
 require('dotenv').config(); // Para cargar las variables de entorno desde el archivo .env
+const pool = require('./db'); // Importar la conexión a la base de datos
 const https = require('https');
 const querystring = require('querystring');
 
@@ -11,7 +12,6 @@ const PSERV = process.env.SHOPPER_PSERV;
 const version = process.env.SHOPPER_VERSIONDF;
 const ECI = process.env.SHOPPER_ECI;
 
-// Función para consultar el estado del pago
 const request = (resourcePath, callback) => {
   // Construir la URL completa con el resourcePath
   const url = `https://eu-test.oppwa.com${resourcePath}?entityId=${entityId}`;
@@ -52,7 +52,6 @@ const request = (resourcePath, callback) => {
   postRequest.end();
 };
 
-// Esta es la función que usa el endpoint de consulta de pago en Express
 const consultarPagoHandler = async (req, res) => {
   const { id } = req.query;
 
@@ -75,7 +74,6 @@ const consultarPagoHandler = async (req, res) => {
   });
 };
 
-// Aquí la lógica de creación de checkout, que ya tienes configurada
 const crearCheckout = async (req, res) => {
   try {
     const {
@@ -192,8 +190,136 @@ const obtenerIpCliente = (req, res) => {
 };
 
 
+const anularPagoHandler = async (req, res) => {
+  const { id_pago } = req.body;
+
+  if (!id_pago) {
+    return res.status(400).json({ error: 'El `id_pago` es requerido para la anulación.' });
+  }
+
+  console.log(`🔄 Iniciando anulación para el pago con ID: ${id_pago}`);
+
+  // ⚠️ Paso 1: Consultar la base de datos para obtener los datos de la transacción.
+  let transactionData;
+  try {
+    const query = `
+      SELECT pe.total
+      FROM pagos AS p
+      JOIN pedidos AS pe ON p.id = pe.id_pago
+      WHERE p.id_pago = ?;
+    `;
+    const [rows] = await pool.query(query, [id_pago]);
+    transactionData = rows[0];
+  } catch (error) {
+    console.error('❌ Error al consultar la base de datos:', error);
+    return res.status(500).json({ error: 'Error al buscar la transacción en la base de datos.' });
+  }
+
+  if (!transactionData) {
+    return res.status(404).json({ error: 'No se encontró la transacción con ese `id_pago`.' });
+  }
+
+  // ⚠️ Paso 2: Preparar los datos para la solicitud de anulación.
+  const urlPath = `/v1/payments/${id_pago}`;
+  const dataObject = {
+    entityId,
+    amount: transactionData.total.toFixed(2),
+    currency: 'USD',
+    paymentType: 'RF', // Clave para la anulación (Reembolso)
+    testMode: 'EXTERNAL',
+  };
+
+  const data = querystring.stringify(dataObject);
+
+  const options = {
+    host,
+    path: urlPath,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(data),
+      Authorization: bearer,
+    },
+  };
+
+  // ⚠️ Paso 3: Realizar la solicitud a la API de Datafast.
+  const postRequest = https.request(options, (response) => {
+    let result = '';
+    response.on('data', chunk => result += chunk);
+    response.on('end', async () => {
+      try {
+        const jsonResponse = JSON.parse(result);
+
+        if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
+          console.log('✅ Anulación exitosa, actualizando estado de pago a "Inactivo".');
+
+          // Realiza el UPDATE para cambiar el estado de "Activo" a "Cancelado" en la tabla `pagos`
+          const updateQuery = `
+  UPDATE pagos 
+  SET estado = 'Cancelado' 
+  WHERE id_pago = ?
+`;
+
+          const [result] = await pool.query(updateQuery, [id_pago]);
+
+          // Verificar si alguna fila fue afectada por el UPDATE
+          if (result.affectedRows > 0) {
+            console.log('✅ Estado de pago actualizado a "Cancelado".');
+
+            // Ahora obtener el `id` de la fila actualizada usando una consulta SELECT
+            const selectQuery = `
+    SELECT id
+    FROM pagos
+    WHERE id_pago = ?
+  `;
+
+            const [rows] = await pool.query(selectQuery, [id_pago]);
+
+            // Verificar si se obtuvo el `id` de la fila actualizada
+            if (rows.length > 0) {
+              const id_pago_modificar = rows[0].id;  // Aquí obtienes el ID de la fila actualizada
+              console.log(`ID del pago actualizado: ${id_pago_modificar}`);
+
+              // Ahora actualizar la tabla `pedidos` utilizando el `id_pago` del pago
+              const updatePedidoQuery = `
+      UPDATE pedidos
+      SET estado = 'Cancelado'
+      WHERE id_pago = ?
+    `;
+              await pool.query(updatePedidoQuery, [id_pago_modificar]);
+              console.log('✅ Estado de pedido actualizado a "Cancelado" en la base de datos.');
+            } else {
+              console.log('❌ No se encontró el pago con id_pago:', id_pago);
+              return res.status(404).json({ error: 'No se encontró el pago con ese id_pago.' });
+            }
+          } else {
+            console.log('❌ No se actualizó ningún pago con ese id_pago:', id_pago);
+            return res.status(400).json({ error: 'No se pudo actualizar el estado del pago.' });
+          }
+        }
+
+        res.json(jsonResponse);
+      } catch (e) {
+        console.error('❌ Error al parsear JSON de anulación:', e);
+        res.status(500).send({ error: 'Error al procesar la respuesta de la anulación.' });
+      }
+    });
+  });
+
+  postRequest.on('error', (e) => {
+    console.error('❌ Error en la solicitud de anulación:', e.message);
+    res.status(500).send({ error: e.message });
+  });
+
+  postRequest.write(data);
+  postRequest.end();
+};
+
+
+
 module.exports = {
   consultarPagoHandler,
   crearCheckout,
-  obtenerIpCliente
+  obtenerIpCliente,
+  anularPagoHandler
 };
