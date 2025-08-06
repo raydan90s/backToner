@@ -2,17 +2,17 @@ const bcrypt = require('bcryptjs');  // Importar bcryptjs
 const pool = require('./db'); // Importa la conexión de la base de datos
 
 // Función para registrar un pago y crear un pedido si el pago es exitoso
-const registrarPago = async (resourcePath, estadoPago, codigoPago, esExitoso, usuarioCorreo, productosCarrito) => {
+const registrarPago = async (resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito, id_pago) => {
+  console.log("DATOS RECIBIDOS id_pago", id_pago);
   try {
     // Encriptar los datos sensibles antes de guardarlos
-    const encryptedCorreo = await bcrypt.hash(usuarioCorreo, 10);  // Hash del correo
     const encryptedEstadoPago = await bcrypt.hash(estadoPago, 10);  // Hash del estado de pago
     const encryptedCodigoPago = await bcrypt.hash(codigoPago, 10);  // Hash del código de pago
 
     // Insertar el pago en la base de datos con los datos encriptados
     const query = `
-      INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, usuarioCorreo)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, usuario_id, id_pago)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     
     // Ejecutar la consulta con los parámetros encriptados
@@ -21,18 +21,20 @@ const registrarPago = async (resourcePath, estadoPago, codigoPago, esExitoso, us
       encryptedEstadoPago, 
       encryptedCodigoPago, 
       esExitoso, 
-      encryptedCorreo
+      usuarioId,
+      id_pago  // Asegúrate de pasar id_pago si es un valor preexistente
     ]);
-    
-    console.log('✅ Pago registrado correctamente:', result);
 
+    const pago_id = result.insertId;  // Obtener el ID del pago recién insertado
+    console.log("ID DE PAGO CLAVE FORANEA");
+    
     // Si el pago fue exitoso, crear el pedido
     if (esExitoso) {
       // Crear un pedido con estado "En proceso"
       const [pedidoResult] = await pool.execute(`
-        INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio)
-        VALUES (?, NOW(), 'En proceso', ?, ?)
-      `, [usuarioCorreo, productosCarrito.total, productosCarrito.direccionEnvio]);
+        INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, id_pago)
+        VALUES (?, NOW(), 'En proceso', ?, ?, ?)
+      `, [usuarioId, productosCarrito.total, productosCarrito.direccionEnvio, pago_id]);
 
       const pedidoId = pedidoResult.insertId; // Obtener el ID del pedido creado
 

@@ -37,12 +37,14 @@ const getDetallePedido = async (req, res) => {
             pr.nombre AS nombre_producto,
             pr.precio AS precio_unitario,
             dp.cantidad,
+            pg.id_pago,
             (dp.cantidad * pr.precio) AS subtotal,
             ip.url_imagen AS imagen_producto
         FROM pedidos p
         JOIN detalle_pedido dp ON p.id = dp.id_pedido
         JOIN producto pr ON dp.id_producto = pr.id
         LEFT JOIN imagenes_producto ip ON pr.id = ip.id_producto
+        LEFT JOIN pagos pg ON p.id_pago = pg.id
         WHERE p.id = ?
     `;
 
@@ -52,9 +54,8 @@ const getDetallePedido = async (req, res) => {
       return res.status(404).json({ error: 'No se encontraron detalles para este pedido.' });
     }
 
-    // Crear el objeto del pedido, manteniendo todos los productos
     const pedido = {
-      ...result[0], // Tomamos el primer resultado para la información del pedido
+      ...result[0], 
       productos: result.map((item) => ({
         id_producto: item.id_producto,
         nombre_producto: item.nombre_producto,
@@ -65,14 +66,12 @@ const getDetallePedido = async (req, res) => {
       })),
     };
 
-    // Descifrar los campos sensibles
     pedido.direccion_envio = descifrar(pedido.direccion_envio);
     pedido.numeroIdentificacion = descifrar(pedido.numeroIdentificacion);
     pedido.numeroTelefono = descifrar(pedido.numeroTelefono);
     pedido.nombrePedido = descifrar(pedido.nombrePedido);
     pedido.nota = descifrar(pedido.nota);
 
-    // Enviar la respuesta con el pedido y los productos
     res.json(pedido);
   } catch (error) {
     console.error("Error al obtener detalles del pedido:", error);
