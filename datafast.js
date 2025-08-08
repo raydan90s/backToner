@@ -1,5 +1,5 @@
-require('dotenv').config(); // Para cargar las variables de entorno desde el archivo .env
-const pool = require('./db'); // Importar la conexión a la base de datos
+require('dotenv').config();
+const pool = require('./db');
 const https = require('https');
 const querystring = require('querystring');
 
@@ -189,7 +189,6 @@ const obtenerIpCliente = (req, res) => {
   res.json({ ip });
 };
 
-
 const anularPagoHandler = async (req, res) => {
   const { id_pago } = req.body;
 
@@ -315,11 +314,65 @@ const anularPagoHandler = async (req, res) => {
   postRequest.end();
 };
 
+const consultarPago = async (req, res) => {
+  const { paymentId } = req.query;
+  const encodedPaymentId = encodeURIComponent(paymentId); // Codificar el paymentId
+  console.log("PaymentID obtenido", encodedPaymentId);
+
+  const options = {
+    hostname: host,
+    path: `/v1/query/${encodedPaymentId}?entityId=${entityId}`,
+    method: 'GET',
+    headers: {
+      'Authorization': bearer,  // Usamos el token de autorización
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const postRequest = https.request(options, (externalRes) => {  // Cambié el nombre de 'res' a 'externalRes' para evitar confusión
+      externalRes.setEncoding('utf8');
+      let result = '';
+
+      externalRes.on('data', (chunk) => {
+        result += chunk;
+      });
+
+      externalRes.on('end', () => {
+        try {
+          const jsonResponse = JSON.parse(result);
+
+          // Imprimir la respuesta completa de Datafast
+          console.log('Respuesta completa de Datafast:', jsonResponse);
+
+          if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
+            res.json(jsonResponse);  // Enviar la respuesta como JSON al cliente
+            resolve(jsonResponse);  // Resolvemos la promesa con la respuesta
+          } else {
+            reject(new Error('La transacción no fue exitosa'));
+          }
+        } catch (e) {
+          reject(new Error('Error al parsear la respuesta JSON'));
+        }
+      });
+    });
+
+    postRequest.on('error', (e) => {
+      reject(new Error(e.message));  // Rechazamos la promesa en caso de error
+    });
+
+    postRequest.end();
+  });
+};
+
+
+
+
 
 
 module.exports = {
   consultarPagoHandler,
   crearCheckout,
   obtenerIpCliente,
-  anularPagoHandler
+  anularPagoHandler,
+  consultarPago
 };

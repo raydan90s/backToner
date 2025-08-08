@@ -60,7 +60,7 @@ const { getHistorialPedidos, getDetallePedido } = require("./historialCompras");
 
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
-const { crearCheckout, consultarPagoHandler, obtenerIpCliente, anularPagoHandler } = require("./datafast");
+const { crearCheckout, consultarPagoHandler, obtenerIpCliente, anularPagoHandler, consultarPago } = require("./datafast");
 const registrarPago = require('./payment');
 
 
@@ -219,7 +219,70 @@ router.get('/checkout/resultado', consultarPagoHandler);
  *       500:
  *         description: Error al procesar la solicitud de anulación.
  */
+
+/**
+ * @swagger
+ * /checkout/consultar:
+ *   get:
+ *     summary: Consulta el estado de un pago
+ *     description: Utiliza el `paymentId` de la transacción para consultar el estado del pago y obtener los detalles correspondientes.
+ *     parameters:
+ *       - in: query
+ *         name: paymentId
+ *         required: true
+ *         description: El identificador único del pago que se desea consultar.
+ *         schema:
+ *           type: string
+ *           example: "your_payment_id"
+ *     responses:
+ *       200:
+ *         description: Respuesta exitosa con los detalles del estado de la transacción.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   type: object
+ *                   properties:
+ *                     code:
+ *                       type: string
+ *                       description: Código de respuesta de la transacción.
+ *                       example: "000.100.112"
+ *                     description:
+ *                       type: string
+ *                       description: Descripción del estado de la transacción.
+ *                       example: "Pago procesado correctamente"
+ *                     redirectUrl:
+ *                       type: string
+ *                       description: URL de redirección en caso de ser necesario.
+ *                       example: "https://example.com/redirect-url"
+ *       400:
+ *         description: Error por falta del `paymentId` en la solicitud o `paymentId` inválido.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "El `paymentId` es necesario para realizar la consulta."
+ *       500:
+ *         description: Error al procesar la solicitud de consulta.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Error al realizar la consulta"
+ */
+router.get('/checkout/consultar', consultarPago);
+
+
 router.post('/checkout/anular', anularPagoHandler);
+
 
 
 //PAGOS
