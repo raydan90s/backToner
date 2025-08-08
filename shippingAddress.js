@@ -1,6 +1,5 @@
 const pool = require("./db");
 
-// ✅ Crear una nueva dirección
 const createShippingAddress = async (req, res) => {
   const { id_usuario } = req.params;
   const {
@@ -11,8 +10,11 @@ const createShippingAddress = async (req, res) => {
     cedula,
     ciudad,
     provincia,
+    pastcode,
     es_principal
   } = req.body;
+
+  console.log("Datos recibidos:", req.body);
 
   if (!id_usuario || !direccion || !telefono || !ciudad || !provincia) {
     return res.status(400).json({ error: "Campos obligatorios faltantes" });
@@ -43,8 +45,8 @@ const createShippingAddress = async (req, res) => {
 
     const query = `
       INSERT INTO direccion_envio_usuario 
-      (id_usuario, nombre, apellido, direccion, telefono, cedula, ciudad, provincia, es_principal)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id_usuario, nombre, apellido, direccion, telefono, cedula, ciudad, provincia, postal, es_principal)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [result] = await pool.query(query, [
       id_usuario,
@@ -55,6 +57,7 @@ const createShippingAddress = async (req, res) => {
       cedula,
       ciudad,
       provincia,
+      pastcode,
       marcarComoPrincipal
     ]);
 
@@ -79,7 +82,6 @@ const createShippingAddress = async (req, res) => {
 };
 
 
-// ✅ Obtener todas las direcciones de un usuario
 const getShippingAddresses = async (req, res) => {
   const { id_usuario } = req.params;
 
@@ -95,7 +97,6 @@ const getShippingAddresses = async (req, res) => {
   }
 };
 
-// ✅ Obtener una dirección específica (por ID)
 const getShippingAddressById = async (req, res) => {
   const { id } = req.params;
 

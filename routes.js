@@ -147,14 +147,6 @@ router.get('/configuracion', getConfiguracion);
 router.put('/configuracion/precio-envio', actualizarPrecioEnvio);
 router.post('/configuracion/iva', agregarIva);
 
-//DIRECCIONES
-router.post("/usuarios/:id_usuario/direccion-envio", createShippingAddress);
-router.get("/usuarios/:id_usuario/direccion-envio", getShippingAddresses);
-router.get("/direccion-envio/:id", getShippingAddressById);
-router.delete("/direccion-envio/:id", deleteShippingAddress);
-router.put("/direccion-envio/:id", updateShippingAddress);       // <--- ruta PUT
-router.get("/usuarios/:id_usuario/direccion-envio/principal", getPrimaryShippingAddress)
-
 //PERMISOS
 router.get("/permissions", getAllPermissions);
 router.get("/permissions/:id_usuario", getUserPermissions);
@@ -166,14 +158,10 @@ router.delete("/direccion-envio/:id", deleteShippingAddress);
 router.put("/direccion-envio/:id", updateShippingAddress);
 router.get("/usuarios/:id_usuario/direccion-envio/principal", getPrimaryShippingAddress);
 
-// Permisos 
-router.get("/permissions", getAllPermissions);
-router.get("/permissions/:id_usuario", getUserPermissions);
 
 // ✅ NUEVA RUTA: HISTORIAL DE PEDIDOS
 router.get('/historial-pedidos', getHistorialPedidos);
 router.get('/pedidos/:id_pedido/detalles', getDetallePedido); // Ruta para obtener los detalles de un pedido específico
-
 
 //DATAFAST
 router.post('/checkout', crearCheckout)

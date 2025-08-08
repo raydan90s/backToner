@@ -129,7 +129,6 @@ const crearCheckout = async (req, res) => {
     });
 
     const data = querystring.stringify(dataObject);
-    console.log("📤 Datos formateados para Datafast:", data);
 
     const options = {
       host,
@@ -298,6 +297,7 @@ const anularPagoHandler = async (req, res) => {
         }
 
         res.json(jsonResponse);
+        console.log("Respuesta de anulación:", jsonResponse);
       } catch (e) {
         console.error('❌ Error al parsear JSON de anulación:', e);
         res.status(500).send({ error: 'Error al procesar la respuesta de la anulación.' });
@@ -316,7 +316,7 @@ const anularPagoHandler = async (req, res) => {
 
 const consultarPago = async (req, res) => {
   const { paymentId } = req.query;
-  const encodedPaymentId = encodeURIComponent(paymentId); // Codificar el paymentId
+  const encodedPaymentId = paymentId; // Codificar el paymentId
   console.log("PaymentID obtenido", encodedPaymentId);
 
   const options = {
