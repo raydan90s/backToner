@@ -39,6 +39,7 @@ const getDetallePedido = async (req, res) => {
             dp.cantidad,
             pg.id_pago,
             pg.estado,
+            pg.id_anulacion,
             (dp.cantidad * pr.precio) AS subtotal,
             ip.url_imagen AS imagen_producto
         FROM pedidos p

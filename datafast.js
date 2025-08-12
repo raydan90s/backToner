@@ -249,41 +249,39 @@ const anularPagoHandler = async (req, res) => {
         const jsonResponse = JSON.parse(result);
 
         if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
-          console.log('✅ Anulación exitosa, actualizando estado de pago a "Inactivo".');
-
-          // Realiza el UPDATE para cambiar el estado de "Activo" a "Cancelado" en la tabla `pagos`
+          console.log('✅ Anulación exitosa, actualizando estado de pago a "Cancelado".');
+        
+          // Guardar id_anulacion junto con el cambio de estado
           const updateQuery = `
-  UPDATE pagos 
-  SET estado = 'Cancelado' 
-  WHERE id_pago = ?
-`;
-
-          const [result] = await pool.query(updateQuery, [id_pago]);
-
-          // Verificar si alguna fila fue afectada por el UPDATE
+            UPDATE pagos 
+            SET estado = 'Cancelado',
+                id_anulacion = ?
+            WHERE id_pago = ?
+          `;
+        
+          const [result] = await pool.query(updateQuery, [jsonResponse.id, id_pago]);
+        
           if (result.affectedRows > 0) {
-            console.log('✅ Estado de pago actualizado a "Cancelado".');
-
+            console.log(`✅ Estado de pago actualizado a "Cancelado" con id_anulacion: ${jsonResponse.id}`);
+        
             // Ahora obtener el `id` de la fila actualizada usando una consulta SELECT
             const selectQuery = `
-    SELECT id
-    FROM pagos
-    WHERE id_pago = ?
-  `;
-
+              SELECT id
+              FROM pagos
+              WHERE id_pago = ?
+            `;
             const [rows] = await pool.query(selectQuery, [id_pago]);
-
-            // Verificar si se obtuvo el `id` de la fila actualizada
+        
             if (rows.length > 0) {
-              const id_pago_modificar = rows[0].id;  // Aquí obtienes el ID de la fila actualizada
+              const id_pago_modificar = rows[0].id;
               console.log(`ID del pago actualizado: ${id_pago_modificar}`);
-
-              // Ahora actualizar la tabla `pedidos` utilizando el `id_pago` del pago
+        
+              // Actualizar el estado en la tabla `pedidos`
               const updatePedidoQuery = `
-      UPDATE pedidos
-      SET estado = 'Cancelado'
-      WHERE id_pago = ?
-    `;
+                UPDATE pedidos
+                SET estado = 'Cancelado'
+                WHERE id_pago = ?
+              `;
               await pool.query(updatePedidoQuery, [id_pago_modificar]);
               console.log('✅ Estado de pedido actualizado a "Cancelado" en la base de datos.');
             } else {
@@ -295,6 +293,7 @@ const anularPagoHandler = async (req, res) => {
             return res.status(400).json({ error: 'No se pudo actualizar el estado del pago.' });
           }
         }
+        
 
         res.json(jsonResponse);
         console.log("Respuesta de anulación:", jsonResponse);
@@ -317,8 +316,6 @@ const anularPagoHandler = async (req, res) => {
 const consultarPago = async (req, res) => {
   const { paymentId } = req.query;
   const encodedPaymentId = paymentId; // Codificar el paymentId
-  console.log("PaymentID obtenido", encodedPaymentId);
-
   const options = {
     hostname: host,
     path: `/v1/query/${encodedPaymentId}?entityId=${entityId}`,
@@ -341,8 +338,6 @@ const consultarPago = async (req, res) => {
         try {
           const jsonResponse = JSON.parse(result);
 
-          // Imprimir la respuesta completa de Datafast
-          console.log('Respuesta completa de Datafast:', jsonResponse);
 
           if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
             res.json(jsonResponse);  // Enviar la respuesta como JSON al cliente
