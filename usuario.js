@@ -361,7 +361,6 @@ const eliminarUsuario = async (req, res) => {
     }
 };
 
-// 1. Buscar usuario por correo (incluye rol y permisos)
 async function getUsuarioByEmail(req, res) {
     const { email } = req.query;
 
@@ -391,20 +390,19 @@ async function getUsuarioByEmail(req, res) {
 
         const rol = roles[0]?.nombre || "Sin rol";
 
-        // Obtener permisos
+        // Obtener permisos asignados directamente al usuario
         const [permisosRaw] = await pool.query(`
             SELECT p.nombre
             FROM permiso p
-            JOIN rol_permiso rp ON rp.id_permiso = p.id
-            JOIN usuario_rol ur ON ur.id_rol = rp.id_rol
-            WHERE ur.id_usuario = ?
+            JOIN usuario_permiso up ON up.id_permiso = p.id
+            WHERE up.id_usuario = ?
         `, [usuario.id]);
 
         const permisos = permisosRaw.map(row => row.nombre);
 
         return res.json({ 
             usuario: { 
-                ...usuarioDescifrado, // Datos descifrados
+                ...usuarioDescifrado,
                 rol, 
                 permisos 
             } 
