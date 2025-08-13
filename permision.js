@@ -3,34 +3,48 @@ const pool = require("./db"); // tu pool de conexión MySQL
 
 // Obtener permisos de un usuario por id_usuario
 async function getUserPermissions(req, res) {
-  const { id_usuario } = req.params;
+    const { id_usuario } = req.params;
 
-  if (!id_usuario) {
-    return res.status(400).json({ message: "Falta el parámetro id_usuario" });
-  }
+    if (!id_usuario) {
+        return res.status(400).json({ message: "Falta el parámetro id_usuario" });
+    }
 
-  try {
-    const sql = `
-      SELECT p.nombre AS permiso
-      FROM permiso p
-      JOIN rol_permiso rp ON rp.id_permiso = p.id
-      JOIN usuario_rol ur ON ur.id_rol = rp.id_rol
-      WHERE ur.id_usuario = ?
-      AND ur.id_rol IN (
-        SELECT id_rol FROM usuario_rol WHERE id_usuario = ?
-      )
-    `;
+    try {
+        // Obtener el rol del usuario
+        const [rolResult] = await pool.query(`
+            SELECT r.nombre AS rol
+            FROM rol r
+            JOIN usuario_rol ur ON ur.id_rol = r.id
+            WHERE ur.id_usuario = ?
+        `, [id_usuario]);
 
-    // Ejecutamos la consulta para obtener permisos únicos
-    const [rows] = await pool.query(sql, [id_usuario, id_usuario]);
+        if (rolResult.length === 0) {
+            return res.status(400).json({ message: "El usuario no tiene un rol asignado" });
+        }
 
-    const permisos = rows.map(row => row.permiso);
+        const rolNombre = rolResult[0].rol;
+        let permisos = [];
 
-    return res.json({ permisos });
-  } catch (error) {
-    console.error("Error al obtener permisos:", error);
-    return res.status(500).json({ message: "Error interno del servidor" });
-  }
+        if (rolNombre === "SuperAdmin") {
+            // Si es SuperAdmin, obtiene todos los permisos
+            const [allPermisos] = await pool.query("SELECT nombre FROM permiso ORDER BY nombre ASC");
+            permisos = allPermisos.map(p => p.nombre);
+        } else {
+            // Para Admin, obtener solo los permisos asignados individualmente
+            const [userPermisos] = await pool.query(`
+                SELECT p.nombre
+                FROM permiso p
+                JOIN usuario_permiso up ON up.id_permiso = p.id
+                WHERE up.id_usuario = ?
+            `, [id_usuario]);
+            permisos = userPermisos.map(p => p.nombre);
+        }
+
+        return res.json({ permisos });
+    } catch (error) {
+        console.error("Error al obtener permisos:", error);
+        return res.status(500).json({ message: "Error interno del servidor" });
+    }
 }
 
 async function getAllPermissions(req, res) {
