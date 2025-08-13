@@ -114,7 +114,7 @@ const registrarUsuarioPublico = async (req, res) => {
 };
 
 const registrarUsuarioAdmin = async (req, res) => {
-    const { tipo, nombre, email, password, telefono, direccion, permisos = [] } = req.body;
+    const { tipo, nombre, email, password,permisos = [] } = req.body;
 
     // Solo puede registrar SuperAdmin
     if (!req.user || req.user.tipo !== 'SuperAdmin') {
@@ -140,13 +140,11 @@ const registrarUsuarioAdmin = async (req, res) => {
 
         // Cifrar datos sensibles con cifrado REGULAR
         const nombreCifrado = cifrar(nombre);        // Cifrado regular
-        const telefonoCifrado = telefono ? cifrar(telefono) : null;  // Cifrado regular
-        const direccionCifrada = direccion ? cifrar(direccion) : null; // Cifrado regular
 
         // Insertar usuario con datos cifrados
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, telefono, direccion, estado) VALUES (?, ?, ?, ?, ?, ?)',
-            [nombreCifrado, emailCifrado, hashedPassword, telefonoCifrado, direccionCifrada, 'Activo']
+            'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo']
         );
         const userId = insertResult.insertId;
 
