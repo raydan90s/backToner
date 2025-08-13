@@ -2,19 +2,70 @@ const pool = require('./db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const { cifrar, descifrar } = require('./cifrado');
+const crypto = require('crypto');
+
+// Cifrado determinístico SOLO para emails (permite búsquedas)
+function cifrarDeterministicoEmail(texto) {
+    // Usar SECRET_KEY_ENCRYPTATION de tu archivo .env
+    const secretKey = process.env.SECRET_KEY_ENCRYPTATION;
+    if (!secretKey) {
+        throw new Error('SECRET_KEY_ENCRYPTATION no está definida en las variables de entorno');
+    }
+    
+    // Tu clave ya tiene 64 caracteres hex, tomar los primeros 32 para AES-256
+    const key = Buffer.from(secretKey.substring(0, 64), 'hex'); // Convertir de hex a buffer (32 bytes)
+    
+    const iv = Buffer.alloc(16, 0); // IV fijo de 16 bytes en cero (no aleatorio)
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(texto.toLowerCase().trim(), 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    return encrypted;
+}
+
+function descifrarDeterministicoEmail(encrypted) {
+    // Usar SECRET_KEY_ENCRYPTATION de tu archivo .env
+    const secretKey = process.env.SECRET_KEY_ENCRYPTATION;
+    if (!secretKey) {
+        throw new Error('SECRET_KEY_ENCRYPTATION no está definida en las variables de entorno');
+    }
+    
+    // Tu clave ya tiene 64 caracteres hex, convertir a buffer de 32 bytes
+    const key = Buffer.from(secretKey.substring(0, 64), 'hex');
+    
+    const iv = Buffer.alloc(16, 0);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encrypted, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+const descifrarUsuario = (usuario) => {
+    if (!usuario) return null;
+    return {
+        ...usuario,
+        nombre: descifrar(usuario.nombre),
+        email: descifrarDeterministicoEmail(usuario.email), // Email usa cifrado determinístico
+        telefono: usuario.telefono ? descifrar(usuario.telefono) : null,
+        direccion: usuario.direccion ? descifrar(usuario.direccion) : null
+    };
+};
 
 const registrarUsuarioPublico = async (req, res) => {
     const { name, apellido, email, password } = req.body;
 
-    console.log(req.body);
+    console.log("Datos recibidos (antes del cifrado):", { name, apellido, email });
 
     if (!name || !email || !password) {
         return res.status(400).json({ message: 'Nombre, correo electrónico y contraseña son requeridos.' });
     }
 
     try {
-        // 1. Verificar si el email ya existe
-        const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [email]);
+        // 1. Cifrar email DETERMINÍSTICAMENTE para verificar si ya existe
+        const emailCifrado = cifrarDeterministicoEmail(email);
+        
+        // Buscar por email cifrado
+        const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [emailCifrado]);
 
         if (results.length > 0) {
             return res.status(409).json({ message: 'El correo electrónico ya está registrado.' });
@@ -23,17 +74,19 @@ const registrarUsuarioPublico = async (req, res) => {
         // 2. Hashear la contraseña
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // 3. Cifrar datos sensibles (nombre usa cifrado REGULAR)
         const nombreCompleto = `${name} ${apellido || ''}`.trim();
+        const nombreCifrado = cifrar(nombreCompleto); // Cifrado regular para nombre
 
-        // 3. Insertar nuevo usuario
+        // 4. Insertar nuevo usuario con datos cifrados
         const [insertResult] = await pool.query(
             'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
-            [nombreCompleto, email, hashedPassword, 'Activo']
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo']
         );
 
         const userId = insertResult.insertId;
 
-        // 4. Obtener el id y nombre del rol "Cliente"
+        // 5. Obtener el id y nombre del rol "Cliente"
         const [rolResult] = await pool.query('SELECT id, nombre FROM rol WHERE nombre = ?', ['Cliente']);
         if (rolResult.length === 0) {
             return res.status(500).json({ message: 'Rol Cliente no existe en la base de datos.' });
@@ -41,13 +94,13 @@ const registrarUsuarioPublico = async (req, res) => {
         const clienteRolId = rolResult[0].id;
         const clienteTipo = rolResult[0].nombre;
 
-        // 5. Insertar en usuario_rol
+        // 6. Insertar en usuario_rol
         await pool.query(
             'INSERT INTO usuario_rol (id_usuario, id_rol) VALUES (?, ?)',
             [userId, clienteRolId]
         );
 
-        // 6. Devolver el usuario registrado con su tipo (rol)
+        // 7. Devolver respuesta con datos descifrados
         res.status(201).json({
             userId,
             tipo: clienteTipo,
@@ -59,8 +112,6 @@ const registrarUsuarioPublico = async (req, res) => {
         res.status(500).json({ message: 'Error interno del servidor' });
     }
 };
-
-
 
 const registrarUsuarioAdmin = async (req, res) => {
     const { tipo, nombre, email, password, telefono, direccion, permisos = [] } = req.body;
@@ -75,8 +126,11 @@ const registrarUsuarioAdmin = async (req, res) => {
     }
 
     try {
+        // Cifrar email DETERMINÍSTICAMENTE para verificar si ya existe
+        const emailCifrado = cifrarDeterministicoEmail(email);
+        
         // Verificar si email ya existe
-        const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [email]);
+        const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [emailCifrado]);
         if (results.length > 0) {
             return res.status(409).json({ error: 'El correo electrónico ya está registrado.' });
         }
@@ -84,10 +138,15 @@ const registrarUsuarioAdmin = async (req, res) => {
         // Hashear contraseña
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Insertar usuario
+        // Cifrar datos sensibles con cifrado REGULAR
+        const nombreCifrado = cifrar(nombre);        // Cifrado regular
+        const telefonoCifrado = telefono ? cifrar(telefono) : null;  // Cifrado regular
+        const direccionCifrada = direccion ? cifrar(direccion) : null; // Cifrado regular
+
+        // Insertar usuario con datos cifrados
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
-            [nombre, email, hashedPassword, 'Activo']
+            'INSERT INTO usuario (nombre, email, password, telefono, direccion, estado) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, telefonoCifrado, direccionCifrada, 'Activo']
         );
         const userId = insertResult.insertId;
 
@@ -146,19 +205,20 @@ const registrarUsuarioAdmin = async (req, res) => {
     }
 };
 
-
-
 const inicioSesion = async (req, res) => {
     const { email, password } = req.body;
 
     try {
+        // Cifrar el email DETERMINÍSTICAMENTE para buscar en la base de datos
+        const emailCifrado = cifrarDeterministicoEmail(email);
+
         const [results] = await pool.query(`
             SELECT u.*, r.nombre AS tipo
             FROM usuario u
             JOIN usuario_rol ur ON u.id = ur.id_usuario
             JOIN rol r ON ur.id_rol = r.id
             WHERE u.email = ?
-        `, [email]);
+        `, [emailCifrado]);
 
         const user = results[0];
 
@@ -171,12 +231,15 @@ const inicioSesion = async (req, res) => {
             return res.status(401).json({ error: 'Contraseña incorrecta' });
         }
 
+        // Descifrar datos del usuario para el token
+        const usuarioDescifrado = descifrarUsuario(user);
+
         const token = jwt.sign(
             {
                 id: user.id,
-                email: user.email,
-                tipo: user.tipo,  // ← Aquí ya tienes el rol como "tipo"
-                nombre: user.nombre
+                email: usuarioDescifrado.email, // Email descifrado para el token
+                tipo: user.tipo,
+                nombre: usuarioDescifrado.nombre // Nombre descifrado para el token
             },
             process.env.SECRET_KEY,
             { expiresIn: '1h' }
@@ -192,8 +255,8 @@ const inicioSesion = async (req, res) => {
             message: 'Inicio de sesión exitoso',
             user: {
                 id: user.id,
-                email: user.email,
-                tipo: user.tipo  // ← También aquí puedes usarlo en el frontend
+                email: usuarioDescifrado.email, // Enviar email descifrado
+                tipo: user.tipo
             }
         });
 
@@ -202,7 +265,6 @@ const inicioSesion = async (req, res) => {
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
-
 
 const eliminarUsuario = async (req, res) => {
     const { id } = req.params;
@@ -214,7 +276,7 @@ const eliminarUsuario = async (req, res) => {
         );
 
         if (results.affectedRows === 0) {
-            return res.status(404).json({ error: 'Correo electronico no registrado' });
+            return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
         res.json({ message: 'Usuario inactivado exitosamente.' });
@@ -232,35 +294,47 @@ async function getUsuarioByEmail(req, res) {
     if (!email) return res.status(400).json({ error: "Falta el parámetro email" });
 
     try {
+        // Cifrar el email DETERMINÍSTICAMENTE para buscar
+        const emailCifrado = cifrarDeterministicoEmail(email);
+
         // Obtener usuario
-        const [usuarios] = await pool.query("SELECT id, nombre, email FROM usuario WHERE email = ?", [email]);
+        const [usuarios] = await pool.query("SELECT id, nombre, email FROM usuario WHERE email = ?", [emailCifrado]);
         if (usuarios.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
 
         const usuario = usuarios[0];
 
+        // Descifrar datos del usuario
+        const usuarioDescifrado = descifrarUsuario(usuario);
+
         // Obtener rol
         const [roles] = await pool.query(`
-      SELECT r.nombre 
-      FROM rol r
-      JOIN usuario_rol ur ON ur.id_rol = r.id
-      WHERE ur.id_usuario = ?
-      LIMIT 1
-    `, [usuario.id]);
+            SELECT r.nombre 
+            FROM rol r
+            JOIN usuario_rol ur ON ur.id_rol = r.id
+            WHERE ur.id_usuario = ?
+            LIMIT 1
+        `, [usuario.id]);
 
         const rol = roles[0]?.nombre || "Sin rol";
 
         // Obtener permisos
         const [permisosRaw] = await pool.query(`
-      SELECT p.nombre
-      FROM permiso p
-      JOIN rol_permiso rp ON rp.id_permiso = p.id
-      JOIN usuario_rol ur ON ur.id_rol = rp.id_rol
-      WHERE ur.id_usuario = ?
-    `, [usuario.id]);
+            SELECT p.nombre
+            FROM permiso p
+            JOIN rol_permiso rp ON rp.id_permiso = p.id
+            JOIN usuario_rol ur ON ur.id_rol = rp.id_rol
+            WHERE ur.id_usuario = ?
+        `, [usuario.id]);
 
         const permisos = permisosRaw.map(row => row.nombre);
 
-        return res.json({ usuario: { ...usuario, rol, permisos } });
+        return res.json({ 
+            usuario: { 
+                ...usuarioDescifrado, // Datos descifrados
+                rol, 
+                permisos 
+            } 
+        });
     } catch (error) {
         console.error("Error al obtener usuario:", error);
         return res.status(500).json({ error: "Error interno del servidor" });

@@ -1,21 +1,6 @@
 const pool = require('./db'); // Ajusta la ruta según donde tengas el pool de conexión
-const crypto = require('crypto');  // Importar el módulo de cifrado
 require('dotenv').config(); // Cargar las variables del archivo .env
-
-const secretKey = process.env.SECRET_KEY_ENCRYPTATION; // Obtener la clave secreta
-
-const descifrar = (textoCifrado) => {
-  // Separar el IV y el texto cifrado
-  const partes = textoCifrado.split(':');
-  const iv = Buffer.from(partes[0], 'hex');  // El IV se almacena como un string en hexadecimal
-  const textoCifradoFinal = partes[1];  // El texto cifrado real
-
-  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(secretKey, 'hex'), iv);
-  let descifrado = decipher.update(textoCifradoFinal, 'hex', 'utf8');
-  descifrado += decipher.final('utf8');
-
-  return descifrado;
-};
+const { descifrar } = require('./cifrado');
 
 const getDetallePedido = async (req, res) => {
   const { id_pedido } = req.params;
