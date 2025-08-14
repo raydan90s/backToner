@@ -5,17 +5,16 @@ require('dotenv').config();
 const { cifrar, descifrar } = require('./cifrado');
 const crypto = require('crypto');
 
-// Cifrado determinístico SOLO para emails (permite búsquedas)
 function cifrarDeterministicoEmail(texto) {
     // Usar SECRET_KEY_ENCRYPTATION de tu archivo .env
     const secretKey = process.env.SECRET_KEY_ENCRYPTATION;
     if (!secretKey) {
         throw new Error('SECRET_KEY_ENCRYPTATION no está definida en las variables de entorno');
     }
-    
+
     // Tu clave ya tiene 64 caracteres hex, tomar los primeros 32 para AES-256
     const key = Buffer.from(secretKey.substring(0, 64), 'hex'); // Convertir de hex a buffer (32 bytes)
-    
+
     const iv = Buffer.alloc(16, 0); // IV fijo de 16 bytes en cero (no aleatorio)
     const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
     let encrypted = cipher.update(texto.toLowerCase().trim(), 'utf8', 'base64');
@@ -29,10 +28,10 @@ function descifrarDeterministicoEmail(encrypted) {
     if (!secretKey) {
         throw new Error('SECRET_KEY_ENCRYPTATION no está definida en las variables de entorno');
     }
-    
+
     // Tu clave ya tiene 64 caracteres hex, convertir a buffer de 32 bytes
     const key = Buffer.from(secretKey.substring(0, 64), 'hex');
-    
+
     const iv = Buffer.alloc(16, 0);
     const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
     let decrypted = decipher.update(encrypted, 'base64', 'utf8');
@@ -51,6 +50,7 @@ const descifrarUsuario = (usuario) => {
     };
 };
 
+
 const registrarUsuarioPublico = async (req, res) => {
     const { name, apellido, email, password } = req.body;
 
@@ -63,7 +63,7 @@ const registrarUsuarioPublico = async (req, res) => {
     try {
         // 1. Cifrar email DETERMINÍSTICAMENTE para verificar si ya existe
         const emailCifrado = cifrarDeterministicoEmail(email);
-        
+
         // Buscar por email cifrado
         const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [emailCifrado]);
 
@@ -78,15 +78,20 @@ const registrarUsuarioPublico = async (req, res) => {
         const nombreCompleto = `${name} ${apellido || ''}`.trim();
         const nombreCifrado = cifrar(nombreCompleto); // Cifrado regular para nombre
 
-        // 4. Insertar nuevo usuario con datos cifrados
+        // 4. Generar token de verificación único
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h de expiración
+
+
+        // 5. Insertar nuevo usuario con datos cifrados y verificado = 0
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
-            [nombreCifrado, emailCifrado, hashedPassword, 'Activo']
+            'INSERT INTO usuario (nombre, email, password, estado, verificado, token_verificacion, token_verificacion_exp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', 0, verificationToken, expiresAt]
         );
 
         const userId = insertResult.insertId;
 
-        // 5. Obtener el id y nombre del rol "Cliente"
+        // 6. Obtener el id y nombre del rol "Cliente"
         const [rolResult] = await pool.query('SELECT id, nombre FROM rol WHERE nombre = ?', ['Cliente']);
         if (rolResult.length === 0) {
             return res.status(500).json({ message: 'Rol Cliente no existe en la base de datos.' });
@@ -94,23 +99,163 @@ const registrarUsuarioPublico = async (req, res) => {
         const clienteRolId = rolResult[0].id;
         const clienteTipo = rolResult[0].nombre;
 
-        // 6. Insertar en usuario_rol
+        // 7. Insertar en usuario_rol
         await pool.query(
             'INSERT INTO usuario_rol (id_usuario, id_rol) VALUES (?, ?)',
             [userId, clienteRolId]
         );
 
-        // 7. Devolver respuesta con datos descifrados
+        // 8. Devolver respuesta con datos descifrados y token de verificación
         res.status(201).json({
             userId,
             tipo: clienteTipo,
-            message: '¡Registro exitoso! Serás redirigido en unos segundos...'
+            verificationToken, // El frontend necesita esto para enviar el correo
+            message: '¡Registro exitoso! Te hemos enviado un correo de verificación.',
+            emailVerificationRequired: true
         });
 
     } catch (error) {
         console.error("Error en registrarUsuarioPublico:", error);
         res.status(500).json({ message: 'Error interno del servidor' });
     }
+};
+
+const verificarEmail = async (req, res) => {
+    const { token } = req.params;
+    if (!token) {
+        console.log('❌ Token no proporcionado');
+        return res.status(400).json({
+            message: 'Token de verificación requerido.',
+            verified: false
+        });
+    }
+
+    try {
+        // PASO 1: Buscar usuario por token
+        const [results] = await pool.query(
+            'SELECT id, verificado, nombre, token_verificacion, token_verificacion_exp FROM usuario WHERE token_verificacion = ?',
+            [token]
+        );
+
+        if (results.length === 0) {
+            return res.status(404).json({
+                message: 'Token de verificación inválido o expirado.',
+                verified: false
+            });
+        }
+
+        const usuario = results[0];
+
+        if (usuario.token_verificacion_exp && new Date(usuario.token_verificacion_exp) < new Date()) {
+            return res.status(400).json({
+                message: 'El token de verificación ha expirado. Solicita un nuevo correo.',
+                verified: false,
+                expired: true
+            });
+        }
+
+        if (usuario.verificado === 1) {
+            return res.status(200).json({
+                message: 'Tu cuenta ya está verificada. Puedes iniciar sesión.',
+                verified: true,
+                alreadyVerified: true
+            });
+        }
+
+        // PASO 4: Actualizar usuario como verificado
+        const [updateResult] = await pool.query(
+            'UPDATE usuario SET verificado = 1, token_verificacion = NULL, token_verificacion_exp = NULL WHERE id = ?',
+            [usuario.id]
+        );
+
+        if (updateResult.affectedRows === 0) {
+            return res.status(500).json({
+                message: 'Error al actualizar el estado de verificación.',
+                verified: false
+            });
+        }
+
+        res.status(200).json({
+            message: '¡Correo verificado exitosamente! Ya puedes iniciar sesión.',
+            verified: true,
+            alreadyVerified: false
+        });
+
+    } catch (error) {
+        console.error("❌ Error en verificarEmail:", error);
+        res.status(500).json({
+            message: 'Error interno del servidor',
+            verified: false
+        });
+    }
+};
+
+const reenviarVerificacion = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email requerido.' });
+  }
+
+  try {
+    const emailCifrado = cifrarDeterministicoEmail(email);
+
+    const [results] = await pool.query(
+      'SELECT id, verificado, nombre, token_verificacion, token_verificacion_exp FROM usuario WHERE email = ?',
+      [emailCifrado]
+    );
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'Usuario no encontrado.' });
+    }
+
+    const usuario = results[0];
+
+    if (usuario.verificado === 1) {
+      return res.status(400).json({
+        message: 'Esta cuenta ya está verificada.',
+        verified: true
+      });
+    }
+
+    const now = new Date();
+    let tokenToSend = usuario.token_verificacion;
+    let tokenExpired = true;
+
+    if (usuario.token_verificacion && usuario.token_verificacion_exp) {
+      const tokenExp = new Date(usuario.token_verificacion_exp);
+      const diffHours = (now.getTime() - tokenExp.getTime()) / 1000 / 3600;
+      if (diffHours < 24) {
+        tokenExpired = false; // Token aún válido
+      }
+    }
+
+    // Si el token no ha expirado, simplemente devolvemos un flag y no generamos nuevo token
+    if (!tokenExpired) {
+      return res.status(200).json({
+        message: 'Token aún válido. No se reenviará correo.',
+        verificationToken: null,
+        nombre: descifrar(usuario.nombre)
+      });
+    }
+
+    // Generar nuevo token si no existe o está expirado
+    tokenToSend = crypto.randomBytes(32).toString('hex');
+    await pool.query(
+      'UPDATE usuario SET token_verificacion = ?, token_verificacion_exp = NOW() WHERE id = ?',
+      [tokenToSend, usuario.id]
+    );
+
+    res.status(200).json({
+      message: 'Correo de verificación listo para enviar.',
+      verificationToken: tokenToSend,
+      nombre: descifrar(usuario.nombre),
+    });
+
+  } catch (error) {
+    console.error("Error en reenviarVerificacion:", error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
 };
 
 const registrarUsuarioAdmin = async (req, res) => {
@@ -141,10 +286,11 @@ const registrarUsuarioAdmin = async (req, res) => {
         // Cifrar nombre
         const nombreCifrado = cifrar(nombre);
 
+        // Los usuarios admin se crean verificados por defecto
         // Insertar usuario
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
-            [nombreCifrado, emailCifrado, hashedPassword, 'Activo']
+            'INSERT INTO usuario (nombre, email, password, estado, verificado) VALUES (?, ?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', 1] // verificado = 1
         );
         const userId = insertResult.insertId;
 
@@ -190,7 +336,8 @@ const registrarUsuarioAdmin = async (req, res) => {
             userId,
             tipo,
             permisos,
-            message: 'Usuario administrador registrado exitosamente.'
+            message: 'Usuario administrador registrado exitosamente.',
+            verified: true // Los admin se crean verificados
         });
 
     } catch (error) {
@@ -282,8 +429,12 @@ async function updatePermisosUsuario(req, res) {
 const inicioSesion = async (req, res) => {
     const { email, password } = req.body;
 
+    // Validación de campos requeridos
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email y contraseña son requeridos.' });
+    }
+
     try {
-        // Cifrar el email DETERMINÍSTICAMENTE para buscar en la base de datos
         const emailCifrado = cifrarDeterministicoEmail(email);
 
         const [results] = await pool.query(`
@@ -297,40 +448,66 @@ const inicioSesion = async (req, res) => {
         const user = results[0];
 
         if (!user) {
-            return res.status(401).json({ error: 'Usuario no encontrado' });
+            return res.status(401).json({ error: 'Credenciales inválidas' }); // Más genérico por seguridad
         }
 
+        // Verificar si el usuario está activo
+        if (user.estado !== 'Activo') {
+            return res.status(403).json({ error: 'Cuenta desactivada. Contacta al administrador.' });
+        }
+
+        // Verificar contraseña antes de verificación de email (más eficiente)
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
         if (!isPasswordCorrect) {
-            return res.status(401).json({ error: 'Contraseña incorrecta' });
+            return res.status(401).json({ error: 'Credenciales inválidas' }); // Más genérico por seguridad
         }
 
-        // Descifrar datos del usuario para el token
+        // Verificar si el email está verificado
+        if (!user.verificado || user.verificado === 0) {
+            return res.status(403).json({
+                error: 'Debes verificar tu correo electrónico antes de iniciar sesión.',
+                user: {
+                    id: user.id,
+                    email: descifrarDeterministicoEmail(user.email), // tu función para descifrar
+                    nombre: descifrar(user.nombre),
+                },
+                emailNotVerified: true,
+                showResendOption: true
+            });
+        }
+
+        // Descifrar datos del usuario
         const usuarioDescifrado = descifrarUsuario(user);
 
+        // Generar token JWT
         const token = jwt.sign(
             {
                 id: user.id,
-                email: usuarioDescifrado.email, // Email descifrado para el token
+                email: usuarioDescifrado.email,
                 tipo: user.tipo,
-                nombre: usuarioDescifrado.nombre // Nombre descifrado para el token
+                nombre: usuarioDescifrado.nombre,
+                verificado: true // Confirmamos que está verificado
             },
             process.env.SECRET_KEY,
             { expiresIn: '1h' }
         );
 
+        // Establecer cookie
         res.cookie('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'Lax',
+            maxAge: 3600000 // 1 hora en milisegundos
         });
 
         res.json({
             message: 'Inicio de sesión exitoso',
             user: {
                 id: user.id,
-                email: usuarioDescifrado.email, // Enviar email descifrado
-                tipo: user.tipo
+                email: usuarioDescifrado.email,
+                nombre: usuarioDescifrado.nombre, // Incluir nombre en la respuesta
+                tipo: user.tipo,
+                verificado: true
             }
         });
 
@@ -339,6 +516,7 @@ const inicioSesion = async (req, res) => {
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
+
 
 const eliminarUsuario = async (req, res) => {
     const { id } = req.params;
@@ -400,19 +578,18 @@ async function getUsuarioByEmail(req, res) {
 
         const permisos = permisosRaw.map(row => row.nombre);
 
-        return res.json({ 
-            usuario: { 
+        return res.json({
+            usuario: {
                 ...usuarioDescifrado,
-                rol, 
-                permisos 
-            } 
+                rol,
+                permisos
+            }
         });
     } catch (error) {
         console.error("Error al obtener usuario:", error);
         return res.status(500).json({ error: "Error interno del servidor" });
     }
 }
-
 
 module.exports = {
     registrarUsuarioPublico,
@@ -422,4 +599,6 @@ module.exports = {
     getUsuarioByEmail,
     updateRolUsuario,
     updatePermisosUsuario,
+    verificarEmail,
+    reenviarVerificacion
 };
