@@ -18,9 +18,10 @@ const {
   getUsuarioByEmail,
   updateRolUsuario,
   updatePermisosUsuario,
-  verificarEmail,
-  reenviarVerificacion
+
 } = require('./usuario');
+
+const {  verificarEmail, reenviarVerificacion} = require('./emails');
 
 const { verifyToken, checkRole } = require('./verify');
 
