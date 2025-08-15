@@ -135,7 +135,7 @@ const reenviarVerificacion = async (req, res) => {
         res.status(500).json({ message: 'Error interno del servidor' });
     }
 };
-
+    
 const restablecerContrasena = async (req, res) => {
     const { email } = req.body;
 

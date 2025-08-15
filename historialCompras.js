@@ -42,7 +42,7 @@ const getDetallePedido = async (req, res) => {
     }
 
     const pedido = {
-      ...result[0], 
+      ...result[0],
       productos: result.map((item) => ({
         id_producto: item.id_producto,
         nombre_producto: item.nombre_producto,
@@ -67,7 +67,6 @@ const getDetallePedido = async (req, res) => {
 };
 
 
-
 const getHistorialPedidos = async (req, res) => {
   try {
     const query = `
@@ -77,8 +76,8 @@ const getHistorialPedidos = async (req, res) => {
         p.fecha_pedido,
         p.total,
         p.estado,
-        p.provincia,  -- Agregado campo provincia
-        p.ciudad     -- Agregado campo ciudad
+        p.provincia,  
+        p.ciudad    
       FROM pedidos p
       JOIN usuario u ON p.id_usuario = u.id
       ORDER BY p.fecha_pedido DESC
@@ -90,6 +89,7 @@ const getHistorialPedidos = async (req, res) => {
     const historialPedidosDescifrados = result.map(pedido => {
       return {
         ...pedido,
+        nombre_usuario: pedido.nombre_usuario ? descifrar(pedido.nombre_usuario) : null,
         provincia: descifrar(pedido.provincia),
         ciudad: descifrar(pedido.ciudad),
       };
