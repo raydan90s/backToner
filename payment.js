@@ -45,6 +45,8 @@ const registrarPago = async (req, res) => {
         return res.status(400).json({ success: false, error: "El carrito está vacío o el total es inválido" });
     }
 
+    let pedidoId = null; // Inicializar la variable fuera del bloque try
+
     try {
         // Cifrar los datos sensibles antes de guardarlos
         const encryptedEstadoPago = cifrar(estadoPago);
@@ -52,9 +54,9 @@ const registrarPago = async (req, res) => {
 
         // Insertar el pago en la base de datos
         const query = `
-      INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id, id_pago)
-      VALUES (?, ?, ?, ?, NOW(), ?, ?)
-    `;
+            INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id, id_pago)
+            VALUES (?, ?, ?, ?, NOW(), ?, ?)
+        `;
 
         const [result] = await pool.execute(query, [
             resourcePath,
@@ -66,8 +68,6 @@ const registrarPago = async (req, res) => {
         ]);
 
         const pago_id = result.insertId;  // Obtener el ID del pago recién insertado
-
-
         console.log("✅ Pago insertado:", result);
 
         if (esExitoso) {
@@ -97,9 +97,7 @@ const registrarPago = async (req, res) => {
                 pago_id
             ]);
 
-            console.log("✅ Pedido registrado:", pedidoResult);
-
-            const pedidoId = pedidoResult.insertId;
+            pedidoId = pedidoResult.insertId; // Asignar el pedidoId si se inserta correctamente
             for (let producto of productos) {
                 await pool.execute(`
                     INSERT INTO detalle_pedido (id_pedido, id_producto, cantidad)
@@ -108,11 +106,16 @@ const registrarPago = async (req, res) => {
             }
         }
 
-        return res.status(200).json({ success: true, message: 'Pago registrado correctamente' });
+        return res.status(200).json({
+            success: true,
+            message: 'Pago registrado correctamente',
+            pedidoId: pedidoId  // Retornar siempre el pedidoId
+        });
     } catch (error) {
         console.error('❌ Error al registrar el pago:', error);
-        res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+        return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
     }
 };
+
 
 module.exports = registrarPago;
