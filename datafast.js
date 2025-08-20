@@ -57,23 +57,76 @@ const consultarPagoHandler = async (req, res) => {
 
   console.log("🔁 Recurso recibido:", id);
 
-  // Llamamos a la función request con el ID recibido para consultar el estado
+  // Esperar 5 segundos antes de consultar
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  console.log(`⏱ 5 segundos de espera cumplidos, consultando pago ${id}...`);
+
+  // Ahora llamamos a request
   request(id, (responseData) => {
-    // Si hay algún error o no se pudo obtener respuesta
     if (responseData.error) {
       return res.status(400).json({ error: responseData.error });
     }
 
-    // En caso de éxito, respondemos con la data procesada
     console.log("✅ Resultado de la consulta:", responseData);
+
     if (responseData.result?.code && responseData.result.code.startsWith('000')) {
-      const redirectUrl = responseData.result?.redirectUrl || '/http://localhost:5173/productos'; // Si no hay URL, usa una predeterminada
+      const redirectUrl = responseData.result?.redirectUrl || '/http://localhost:5173/productos';
       responseData.result.redirectUrl = redirectUrl;
     }
+
     res.json(responseData);
   });
 };
 
+const consultarPago = async (req, res) => {
+  const { paymentId } = req.query;
+  const encodedPaymentId = paymentId;
+
+  console.log(`⏱ Esperando 5 segundos antes de consultar el pago ${paymentId}`);
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  console.log(`🔍 Consultando ahora el pago ${paymentId}`);
+
+  const options = {
+    hostname: host,
+    path: `/v1/query/${encodedPaymentId}?entityId=${entityId}`,
+    method: 'GET',
+    headers: {
+      'Authorization': bearer,
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const postRequest = https.request(options, (externalRes) => {
+      externalRes.setEncoding('utf8');
+      let result = '';
+
+      externalRes.on('data', (chunk) => {
+        result += chunk;
+      });
+
+      externalRes.on('end', () => {
+        try {
+          const jsonResponse = JSON.parse(result);
+
+          if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
+            res.json(jsonResponse);
+            resolve(jsonResponse);
+          } else {
+            reject(new Error('La transacción no fue exitosa'));
+          }
+        } catch (e) {
+          reject(new Error('Error al parsear la respuesta JSON'));
+        }
+      });
+    });
+
+    postRequest.on('error', (e) => {
+      reject(new Error(e.message));
+    });
+
+    postRequest.end();
+  });
+};
 const crearCheckout = async (req, res) => {
   try {
     const {
@@ -250,7 +303,7 @@ const anularPagoHandler = async (req, res) => {
 
         if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
           console.log('✅ Anulación exitosa, actualizando estado de pago a "Cancelado".');
-        
+
           // Guardar id_anulacion junto con el cambio de estado
           const updateQuery = `
             UPDATE pagos 
@@ -258,12 +311,12 @@ const anularPagoHandler = async (req, res) => {
                 id_anulacion = ?
             WHERE id_pago = ?
           `;
-        
+
           const [result] = await pool.query(updateQuery, [jsonResponse.id, id_pago]);
-        
+
           if (result.affectedRows > 0) {
             console.log(`✅ Estado de pago actualizado a "Cancelado" con id_anulacion: ${jsonResponse.id}`);
-        
+
             // Ahora obtener el `id` de la fila actualizada usando una consulta SELECT
             const selectQuery = `
               SELECT id
@@ -271,11 +324,11 @@ const anularPagoHandler = async (req, res) => {
               WHERE id_pago = ?
             `;
             const [rows] = await pool.query(selectQuery, [id_pago]);
-        
+
             if (rows.length > 0) {
               const id_pago_modificar = rows[0].id;
               console.log(`ID del pago actualizado: ${id_pago_modificar}`);
-        
+
               // Actualizar el estado en la tabla `pedidos`
               const updatePedidoQuery = `
                 UPDATE pedidos
@@ -293,7 +346,7 @@ const anularPagoHandler = async (req, res) => {
             return res.status(400).json({ error: 'No se pudo actualizar el estado del pago.' });
           }
         }
-        
+
 
         res.json(jsonResponse);
         console.log("Respuesta de anulación:", jsonResponse);
@@ -312,55 +365,6 @@ const anularPagoHandler = async (req, res) => {
   postRequest.write(data);
   postRequest.end();
 };
-
-const consultarPago = async (req, res) => {
-  const { paymentId } = req.query;
-  const encodedPaymentId = paymentId; // Codificar el paymentId
-  const options = {
-    hostname: host,
-    path: `/v1/query/${encodedPaymentId}?entityId=${entityId}`,
-    method: 'GET',
-    headers: {
-      'Authorization': bearer,  // Usamos el token de autorización
-    }
-  };
-
-  return new Promise((resolve, reject) => {
-    const postRequest = https.request(options, (externalRes) => {  // Cambié el nombre de 'res' a 'externalRes' para evitar confusión
-      externalRes.setEncoding('utf8');
-      let result = '';
-
-      externalRes.on('data', (chunk) => {
-        result += chunk;
-      });
-
-      externalRes.on('end', () => {
-        try {
-          const jsonResponse = JSON.parse(result);
-
-
-          if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
-            res.json(jsonResponse);  // Enviar la respuesta como JSON al cliente
-            resolve(jsonResponse);  // Resolvemos la promesa con la respuesta
-          } else {
-            reject(new Error('La transacción no fue exitosa'));
-          }
-        } catch (e) {
-          reject(new Error('Error al parsear la respuesta JSON'));
-        }
-      });
-    });
-
-    postRequest.on('error', (e) => {
-      reject(new Error(e.message));  // Rechazamos la promesa en caso de error
-    });
-
-    postRequest.end();
-  });
-};
-
-
-
 
 
 
