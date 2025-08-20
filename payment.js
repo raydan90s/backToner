@@ -39,26 +39,27 @@ const registrarPago = async (req, res) => {
     const nota = direccionEnvio.notas;
     const total = productosCarrito.total || 0;
     const productos = productosCarrito.productos || [];
-
+    const envio = productosCarrito.envio;
+    const iva = productosCarrito.iva ?? 0;
     if (!total || productos.length === 0) {
         console.error("❌ El carrito está vacío o el total es inválido");
         return res.status(400).json({ success: false, error: "El carrito está vacío o el total es inválido" });
     }
 
-    let pedidoId = null; // Inicializar la variable fuera del bloque try
+    let pedidoId = null;
+    const connection = await pool.getConnection(); // Obtener conexión para transacción
 
     try {
-        // Cifrar los datos sensibles antes de guardarlos
+        await connection.beginTransaction(); // Iniciar transacción
+
+        // Insertar pago
         const encryptedEstadoPago = cifrar(estadoPago);
         const encryptedCodigoPago = cifrar(codigoPago);
 
-        // Insertar el pago en la base de datos
-        const query = `
+        const [result] = await connection.execute(`
             INSERT INTO pagos (resourcePath, estadoPago, codigoPago, esExitoso, fechaPago, usuario_id, id_pago)
             VALUES (?, ?, ?, ?, NOW(), ?, ?)
-        `;
-
-        const [result] = await pool.execute(query, [
+        `, [
             resourcePath,
             encryptedEstadoPago,
             encryptedCodigoPago,
@@ -67,11 +68,10 @@ const registrarPago = async (req, res) => {
             id_pago
         ]);
 
-        const pago_id = result.insertId;  // Obtener el ID del pago recién insertado
-        console.log("✅ Pago insertado:", result);
+        const pago_id = result.insertId;
 
         if (esExitoso) {
-            // Cifrar los datos del pedido
+            // Cifrar datos del pedido
             const encryptedDireccionCalle = cifrar(direccionCalle);
             const encryptedProvincia = cifrar(provincia);
             const encryptedCiudad = cifrar(ciudad);
@@ -80,13 +80,12 @@ const registrarPago = async (req, res) => {
             const encryptedNombrePedido = cifrar(nombrePedido);
             const encryptedNota = cifrar(nota);
 
-            // Registrar el pedido en la base de datos
-            const [pedidoResult] = await pool.execute(`
-                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota, id_pago)
-                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            const [pedidoResult] = await connection.execute(`
+                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota, id_pago, envio, iva_valor)
+                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 usuarioId,
-                total, // El total no es cifrado
+                total,
                 encryptedDireccionCalle,
                 encryptedProvincia,
                 encryptedCiudad,
@@ -94,28 +93,52 @@ const registrarPago = async (req, res) => {
                 encryptedNumeroTelefono,
                 encryptedNombrePedido,
                 encryptedNota,
-                pago_id
+                pago_id,
+                envio,
+                iva
             ]);
 
-            pedidoId = pedidoResult.insertId; // Asignar el pedidoId si se inserta correctamente
+            pedidoId = pedidoResult.insertId;
+
+
+            // Insertar detalle_pedido
             for (let producto of productos) {
-                await pool.execute(`
-                    INSERT INTO detalle_pedido (id_pedido, id_producto, cantidad)
-                    VALUES (?, ?, ?)
-                `, [pedidoId, producto.id, producto.cantidad]);
+                const precio_unitario = producto.precio ?? 0;
+                const descuento_unitario = producto.descuento ?? 0;
+                const iva_unitario = precio_unitario * (iva / 100);
+
+                await connection.execute(`
+                    INSERT INTO detalle_pedido 
+                    (id_pedido, id_producto, cantidad, precio_unitario, descuento_unitario, iva_unitario)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `, [
+                    pedidoId,
+                    producto.id,
+                    producto.cantidad,
+                    precio_unitario,
+                    descuento_unitario,
+                    iva_unitario,
+                ]);
             }
         }
+
+        await connection.commit(); // Confirmar transacción
 
         return res.status(200).json({
             success: true,
             message: 'Pago registrado correctamente',
-            pedidoId: pedidoId  // Retornar siempre el pedidoId
+            pedidoId
         });
+
     } catch (error) {
+        await connection.rollback(); // Revertir todo si hay error
         console.error('❌ Error al registrar el pago:', error);
         return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+    } finally {
+        connection.release(); // Liberar conexión
     }
 };
+
 
 
 module.exports = registrarPago;

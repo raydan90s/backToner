@@ -7,32 +7,37 @@ const getDetallePedido = async (req, res) => {
 
   try {
     const query = `
-        SELECT 
-            p.id AS id_pedido,
-            p.id_usuario,
-            p.fecha_pedido,
-            p.estado,
-            p.total,
-            p.direccion_envio,
-            p.numeroIdentificacion,
-            p.numeroTelefono,
-            p.nombrePedido,
-            p.nota,
-            dp.id_producto,
-            pr.nombre AS nombre_producto,
-            pr.precio AS precio_unitario,
-            dp.cantidad,
-            pg.id_pago,
-            pg.estado,
-            pg.id_anulacion,
-            (dp.cantidad * pr.precio) AS subtotal,
-            ip.url_imagen AS imagen_producto
-        FROM pedidos p
-        JOIN detalle_pedido dp ON p.id = dp.id_pedido
-        JOIN producto pr ON dp.id_producto = pr.id
-        LEFT JOIN imagenes_producto ip ON pr.id = ip.id_producto
-        LEFT JOIN pagos pg ON p.id_pago = pg.id
-        WHERE p.id = ?
+      SELECT 
+        p.id AS id_pedido,
+        p.id_usuario,
+        p.fecha_pedido,
+        p.estado,
+        p.total,
+        p.direccion_envio,
+        p.provincia,
+        p.ciudad,
+        p.numeroIdentificacion,
+        p.numeroTelefono,
+        p.nombrePedido,
+        p.nota,
+        p.id_pago,
+        p.envio,
+        p.iva_valor,
+        dp.id_producto,
+        dp.cantidad,
+        dp.precio_unitario,
+        dp.descuento_unitario,
+        dp.iva_unitario,
+        pr.nombre AS nombre_producto,
+        ip.url_imagen AS imagen_producto,
+        pg.id_pago AS id_pago,
+        pg.id_anulacion AS id_anulacion
+      FROM pedidos p
+      JOIN detalle_pedido dp ON p.id = dp.id_pedido
+      JOIN producto pr ON dp.id_producto = pr.id
+      JOIN pagos pg On p.id_pago = pg.id
+      LEFT JOIN imagenes_producto ip ON pr.id = ip.id_producto
+      WHERE p.id = ?
     `;
 
     const [result] = await pool.query(query, [id_pedido]);
@@ -41,23 +46,29 @@ const getDetallePedido = async (req, res) => {
       return res.status(404).json({ error: 'No se encontraron detalles para este pedido.' });
     }
 
+    // Construir el objeto del pedido con productos
     const pedido = {
       ...result[0],
-      productos: result.map((item) => ({
+      productos: result.map(item => ({
         id_producto: item.id_producto,
         nombre_producto: item.nombre_producto,
-        precio_unitario: item.precio_unitario,
         cantidad: item.cantidad,
-        subtotal: item.subtotal,
+        precio_unitario: item.precio_unitario,
+        descuento_unitario: item.descuento_unitario,
+        iva_unitario: item.iva_unitario,
+        subtotal: (item.precio_unitario * item.cantidad) - (item.descuento_unitario || 0) + (item.iva_unitario || 0),
         imagen_producto: item.imagen_producto,
       })),
     };
 
+    // Descifrar campos sensibles
     pedido.direccion_envio = descifrar(pedido.direccion_envio);
     pedido.numeroIdentificacion = descifrar(pedido.numeroIdentificacion);
     pedido.numeroTelefono = descifrar(pedido.numeroTelefono);
     pedido.nombrePedido = descifrar(pedido.nombrePedido);
     pedido.nota = descifrar(pedido.nota);
+    pedido.provincia = descifrar(pedido.provincia);
+    pedido.ciudad = descifrar(pedido.ciudad);
 
     res.json(pedido);
   } catch (error) {
@@ -66,6 +77,89 @@ const getDetallePedido = async (req, res) => {
   }
 };
 
+const getPedidosUsuario = async (req, res) => {
+  const { id_usuario } = req.params;
+  const { status, from, to } = req.query; // ya no usamos page ni limit
+
+  try {
+    // Construir la consulta base
+    let whereConditions = ['p.id_usuario = ?'];
+    let queryParams = [id_usuario];
+
+    if (status) {
+      whereConditions.push('p.estado = ?');
+      queryParams.push(status);
+    }
+
+    if (from) {
+      whereConditions.push('DATE(p.fecha_pedido) >= ?');
+      queryParams.push(from);
+    }
+
+    if (to) {
+      whereConditions.push('DATE(p.fecha_pedido) <= ?');
+      queryParams.push(to);
+    }
+
+    const whereClause = whereConditions.join(' AND ');
+
+    // Consulta principal SIN paginación
+    const query = `
+      SELECT 
+        p.id AS id_pedido,
+        p.fecha_pedido,
+        p.estado,
+        p.total,
+        p.direccion_envio,
+        p.numeroIdentificacion,
+        p.numeroTelefono,
+        p.nombrePedido,
+        p.nota,
+        p.provincia,
+        p.ciudad,
+        pg.estado AS estado_pago,
+        SUM(dp.cantidad) AS total_productos
+      FROM pedidos p
+      LEFT JOIN detalle_pedido dp ON p.id = dp.id_pedido
+      LEFT JOIN pagos pg ON p.id_pago = pg.id
+      WHERE ${whereClause}
+      GROUP BY p.id
+      ORDER BY p.fecha_pedido DESC;
+    `;
+
+    const [result] = await pool.query(query, queryParams);
+
+    // Descifrar campos sensibles
+    const pedidosDescifrados = result.map(pedido => ({
+      id: pedido.id_pedido,
+      numero_orden: `ORD-${String(pedido.id_pedido).padStart(6, '0')}`,
+      fecha_creacion: pedido.fecha_pedido,
+      estado: pedido.estado,
+      total: parseFloat(pedido.total),
+      total_productos: pedido.total_productos,
+      estado_pago: pedido.estado_pago,
+      id_anulacion: pedido.id_anulacion,
+      direccion_envio: {
+        direccion: pedido.direccion_envio ? descifrar(pedido.direccion_envio) : null,
+        ciudad: pedido.ciudad ? descifrar(pedido.ciudad) : null,
+        provincia: pedido.provincia ? descifrar(pedido.provincia) : null,
+      },
+      nombre_pedido: pedido.nombrePedido ? descifrar(pedido.nombrePedido) : null,
+      telefono: pedido.numeroTelefono ? descifrar(pedido.numeroTelefono) : null,
+      identificacion: pedido.numeroIdentificacion ? descifrar(pedido.numeroIdentificacion) : null,
+      nota: pedido.nota ? descifrar(pedido.nota) : null,
+    }));
+
+    res.json({
+      orders: pedidosDescifrados,
+      totalOrders: pedidosDescifrados.length,
+    });
+
+  } catch (error) {
+    console.error("Error al obtener pedidos del usuario:", error);
+    res.status(500).json({ error: "Error al obtener pedidos del usuario" });
+  }
+};
 
 const getHistorialPedidos = async (req, res) => {
   try {
@@ -106,5 +200,6 @@ const getHistorialPedidos = async (req, res) => {
 
 module.exports = {
   getHistorialPedidos,
-  getDetallePedido
+  getDetallePedido,
+  getPedidosUsuario
 };
