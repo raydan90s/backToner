@@ -155,7 +155,7 @@ const crearCheckout = async (req, res) => {
       'customer.merchantCustomerId': customer.merchantCustomerId,
       'customer.email': customer.email,
       'customer.identificationDocId': customer.identificationDocId,
-      'customer.identificationDocType': customer.identificationDocType,  // <--- AGREGAR ESTA LÍNEA
+      'customer.identificationDocType': customer.identificationDocType,
       'customer.phone': customer.phone,
       'billing.street1': billing.street1,
       'billing.country': billing.country,
@@ -171,7 +171,8 @@ const crearCheckout = async (req, res) => {
       'customParameters[SHOPPER_VAL_BASEIMP]': customParameters.SHOPPER_VAL_BASEIMP,
       'customParameters[SHOPPER_VAL_IVA]': customParameters.SHOPPER_VAL_IVA,
       'customParameters[SHOPPER_VERSIONDF]': version,
-      'testMode': 'EXTERNAL' // ⚠️ Eliminar en producción
+      // ⚠️ Línea eliminada para pasar a producción:
+      // 'testMode': 'EXTERNAL'
     };
 
     cart.items.forEach((item, i) => {
@@ -276,8 +277,9 @@ const anularPagoHandler = async (req, res) => {
     entityId,
     amount: transactionData.total.toFixed(2),
     currency: 'USD',
-    paymentType: 'RF', // Clave para la anulación (Reembolso)
-    testMode: 'EXTERNAL',
+    paymentType: 'RF',
+    // ⚠️ Línea eliminada para pasar a producción:
+    // testMode: 'EXTERNAL',
   };
 
   const data = querystring.stringify(dataObject);
