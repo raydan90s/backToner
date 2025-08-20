@@ -60,19 +60,77 @@ const consultarPagoHandler = async (req, res) => {
 
   console.log("🔁 Recurso recibido:", id);
 
+  // Esperar 5 segundos antes de consultar
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  console.log(`⏱ 5 segundos de espera cumplidos, consultando pago ${id}...`);
+
+  // Ahora llamamos a request
   request(id, (responseData) => {
     if (responseData.error) {
       return res.status(400).json({ error: responseData.error });
     }
 
     console.log("✅ Resultado de la consulta:", responseData);
+
     if (responseData.result?.code && responseData.result.code.startsWith('000')) {
       const redirectUrl = responseData.result?.redirectUrl || '/http://localhost:5173/productos';
       responseData.result.redirectUrl = redirectUrl;
     }
+
     res.json(responseData);
   });
 };
+
+const consultarPago = async (req, res) => {
+  const { paymentId } = req.query;
+  const encodedPaymentId = paymentId;
+
+  console.log(`⏱ Esperando 5 segundos antes de consultar el pago ${paymentId}`);
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  console.log(`🔍 Consultando ahora el pago ${paymentId}`);
+
+  const options = {
+    hostname: host,
+    path: `/v1/query/${encodedPaymentId}?entityId=${entityId}`,
+    method: 'GET',
+    headers: {
+      'Authorization': bearer,
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const postRequest = https.request(options, (externalRes) => {
+      externalRes.setEncoding('utf8');
+      let result = '';
+
+      externalRes.on('data', (chunk) => {
+        result += chunk;
+      });
+
+      externalRes.on('end', () => {
+        try {
+          const jsonResponse = JSON.parse(result);
+
+          if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
+            res.json(jsonResponse);
+            resolve(jsonResponse);
+          } else {
+            reject(new Error('La transacción no fue exitosa'));
+          }
+        } catch (e) {
+          reject(new Error('Error al parsear la respuesta JSON'));
+        }
+      });
+    });
+
+    postRequest.on('error', (e) => {
+      reject(new Error(e.message));
+    });
+
+    postRequest.end();
+  });
+};
+
 
 const crearCheckout = async (req, res) => {
   try {
@@ -306,50 +364,6 @@ const anularPagoHandler = async (req, res) => {
   postRequest.end();
 };
 
-const consultarPago = async (req, res) => {
-  const { paymentId } = req.query;
-  const encodedPaymentId = paymentId;
-  const options = {
-    hostname: host,
-    path: `/v1/query/${encodedPaymentId}?entityId=${entityId}`,
-    method: 'GET',
-    headers: {
-      'Authorization': bearer,
-    }
-  };
-
-  return new Promise((resolve, reject) => {
-    const postRequest = https.request(options, (externalRes) => {
-      externalRes.setEncoding('utf8');
-      let result = '';
-
-      externalRes.on('data', (chunk) => {
-        result += chunk;
-      });
-
-      externalRes.on('end', () => {
-        try {
-          const jsonResponse = JSON.parse(result);
-
-          if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
-            res.json(jsonResponse);
-            resolve(jsonResponse);
-          } else {
-            reject(new Error('La transacción no fue exitosa'));
-          }
-        } catch (e) {
-          reject(new Error('Error al parsear la respuesta JSON'));
-        }
-      });
-    });
-
-    postRequest.on('error', (e) => {
-      reject(new Error(e.message));
-    });
-
-    postRequest.end();
-  });
-};
 
 module.exports = {
   consultarPagoHandler,
