@@ -1,5 +1,6 @@
 const pool = require('./db');
 const crypto = require('crypto');
+import { descifrar } from './cifrado';
 
 const verificarEmail = async (req, res) => {
     const { token } = req.params;
