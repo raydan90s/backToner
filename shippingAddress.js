@@ -182,6 +182,7 @@ const updateShippingAddress = async (req, res) => {
     cedula,
     ciudad,
     provincia,
+    pastcode,
     es_principal
   } = req.body;
 
@@ -214,12 +215,13 @@ const updateShippingAddress = async (req, res) => {
     const cedulaCifrada = cifrar(cedula);
     const ciudadCifrada = cifrar(ciudad);
     const provinciaCifrada = cifrar(provincia);
+    const pastcodeCifrado = cifrar(pastcode);
 
     // Ahora actualizo la dirección
     const query = `
       UPDATE direccion_envio_usuario
       SET nombre = ?, apellido = ?, direccion = ?, telefono = ?,
-          cedula = ?, ciudad = ?, provincia = ?, 
+          cedula = ?, ciudad = ?, provincia = ?, postal = ?, 
           ${es_principal ? "es_principal = TRUE" : "es_principal = FALSE"}
       WHERE id = ?
     `;
@@ -231,6 +233,7 @@ const updateShippingAddress = async (req, res) => {
       cedulaCifrada,
       ciudadCifrada,
       provinciaCifrada,
+      pastcodeCifrado,
       id
     ]);
 

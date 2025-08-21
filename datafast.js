@@ -131,7 +131,6 @@ const consultarPago = async (req, res) => {
   });
 };
 
-
 const crearCheckout = async (req, res) => {
   try {
     const {
@@ -305,7 +304,8 @@ const anularPagoHandler = async (req, res) => {
 
         if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
           console.log('✅ Anulación exitosa, actualizando estado de pago a "Cancelado".');
-
+        
+          // Guardar id_anulacion junto con el cambio de estado
           const updateQuery = `
             UPDATE pagos
             SET estado = 'Cancelado',
@@ -317,7 +317,8 @@ const anularPagoHandler = async (req, res) => {
 
           if (result.affectedRows > 0) {
             console.log(`✅ Estado de pago actualizado a "Cancelado" con id_anulacion: ${jsonResponse.id}`);
-
+        
+            // Ahora obtener el `id` de la fila actualizada usando una consulta SELECT
             const selectQuery = `
               SELECT id
               FROM pagos
@@ -328,7 +329,8 @@ const anularPagoHandler = async (req, res) => {
             if (rows.length > 0) {
               const id_pago_modificar = rows[0].id;
               console.log(`ID del pago actualizado: ${id_pago_modificar}`);
-
+        
+              // Actualizar el estado en la tabla `pedidos`
               const updatePedidoQuery = `
                 UPDATE pedidos
                 SET estado = 'Cancelado'
@@ -345,6 +347,7 @@ const anularPagoHandler = async (req, res) => {
             return res.status(400).json({ error: 'No se pudo actualizar el estado del pago.' });
           }
         }
+        
 
         res.json(jsonResponse);
         console.log("Respuesta de anulación:", jsonResponse);
@@ -363,7 +366,6 @@ const anularPagoHandler = async (req, res) => {
   postRequest.write(data);
   postRequest.end();
 };
-
 
 module.exports = {
   consultarPagoHandler,

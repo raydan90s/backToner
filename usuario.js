@@ -54,8 +54,6 @@ const descifrarUsuario = (usuario) => {
 const registrarUsuarioPublico = async (req, res) => {
     const { name, apellido, email, password } = req.body;
 
-    console.log("Datos recibidos (antes del cifrado):", { name, apellido, email });
-
     if (!name || !email || !password) {
         return res.status(400).json({ message: 'Nombre, correo electrónico y contraseña son requeridos.' });
     }
@@ -83,10 +81,9 @@ const registrarUsuarioPublico = async (req, res) => {
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h de expiración
 
 
-        // 5. Insertar nuevo usuario con datos cifrados y verificado = 0
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, estado, verificado, token_verificacion, token_verificacion_exp) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', 0, verificationToken, expiresAt]
+            'INSERT INTO usuario (nombre, email, password, estado, token_verificacion, token_verificacion_exp) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', verificationToken, expiresAt]
         );
 
         const userId = insertResult.insertId;
@@ -120,143 +117,6 @@ const registrarUsuarioPublico = async (req, res) => {
     }
 };
 
-const verificarEmail = async (req, res) => {
-    const { token } = req.params;
-    if (!token) {
-        console.log('❌ Token no proporcionado');
-        return res.status(400).json({
-            message: 'Token de verificación requerido.',
-            verified: false
-        });
-    }
-
-    try {
-        // PASO 1: Buscar usuario por token
-        const [results] = await pool.query(
-            'SELECT id, verificado, nombre, token_verificacion, token_verificacion_exp FROM usuario WHERE token_verificacion = ?',
-            [token]
-        );
-
-        if (results.length === 0) {
-            return res.status(404).json({
-                message: 'Token de verificación inválido o expirado.',
-                verified: false
-            });
-        }
-
-        const usuario = results[0];
-
-        if (usuario.token_verificacion_exp && new Date(usuario.token_verificacion_exp) < new Date()) {
-            return res.status(400).json({
-                message: 'El token de verificación ha expirado. Solicita un nuevo correo.',
-                verified: false,
-                expired: true
-            });
-        }
-
-        if (usuario.verificado === 1) {
-            return res.status(200).json({
-                message: 'Tu cuenta ya está verificada. Puedes iniciar sesión.',
-                verified: true,
-                alreadyVerified: true
-            });
-        }
-
-        // PASO 4: Actualizar usuario como verificado
-        const [updateResult] = await pool.query(
-            'UPDATE usuario SET verificado = 1, token_verificacion = NULL, token_verificacion_exp = NULL WHERE id = ?',
-            [usuario.id]
-        );
-
-        if (updateResult.affectedRows === 0) {
-            return res.status(500).json({
-                message: 'Error al actualizar el estado de verificación.',
-                verified: false
-            });
-        }
-
-        res.status(200).json({
-            message: '¡Correo verificado exitosamente! Ya puedes iniciar sesión.',
-            verified: true,
-            alreadyVerified: false
-        });
-
-    } catch (error) {
-        console.error("❌ Error en verificarEmail:", error);
-        res.status(500).json({
-            message: 'Error interno del servidor',
-            verified: false
-        });
-    }
-};
-
-const reenviarVerificacion = async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ message: 'Email requerido.' });
-  }
-
-  try {
-    const emailCifrado = cifrarDeterministicoEmail(email);
-
-    const [results] = await pool.query(
-      'SELECT id, verificado, nombre, token_verificacion, token_verificacion_exp FROM usuario WHERE email = ?',
-      [emailCifrado]
-    );
-
-    if (results.length === 0) {
-      return res.status(404).json({ message: 'Usuario no encontrado.' });
-    }
-
-    const usuario = results[0];
-
-    if (usuario.verificado === 1) {
-      return res.status(400).json({
-        message: 'Esta cuenta ya está verificada.',
-        verified: true
-      });
-    }
-
-    const now = new Date();
-    let tokenToSend = usuario.token_verificacion;
-    let tokenExpired = true;
-
-    if (usuario.token_verificacion && usuario.token_verificacion_exp) {
-      const tokenExp = new Date(usuario.token_verificacion_exp);
-      const diffHours = (now.getTime() - tokenExp.getTime()) / 1000 / 3600;
-      if (diffHours < 24) {
-        tokenExpired = false; // Token aún válido
-      }
-    }
-
-    // Si el token no ha expirado, simplemente devolvemos un flag y no generamos nuevo token
-    if (!tokenExpired) {
-      return res.status(200).json({
-        message: 'Token aún válido. No se reenviará correo.',
-        verificationToken: null,
-        nombre: descifrar(usuario.nombre)
-      });
-    }
-
-    // Generar nuevo token si no existe o está expirado
-    tokenToSend = crypto.randomBytes(32).toString('hex');
-    await pool.query(
-      'UPDATE usuario SET token_verificacion = ?, token_verificacion_exp = NOW() WHERE id = ?',
-      [tokenToSend, usuario.id]
-    );
-
-    res.status(200).json({
-      message: 'Correo de verificación listo para enviar.',
-      verificationToken: tokenToSend,
-      nombre: descifrar(usuario.nombre),
-    });
-
-  } catch (error) {
-    console.error("Error en reenviarVerificacion:", error);
-    res.status(500).json({ message: 'Error interno del servidor' });
-  }
-};
 
 const registrarUsuarioAdmin = async (req, res) => {
     const { tipo, nombre, email, password, permisos = [] } = req.body;
@@ -599,6 +459,4 @@ module.exports = {
     getUsuarioByEmail,
     updateRolUsuario,
     updatePermisosUsuario,
-    verificarEmail,
-    reenviarVerificacion
 };

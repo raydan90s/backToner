@@ -18,9 +18,10 @@ const {
   getUsuarioByEmail,
   updateRolUsuario,
   updatePermisosUsuario,
-  verificarEmail,
-  reenviarVerificacion
+
 } = require('./usuario');
+
+const {  verificarEmail, reenviarVerificacion} = require('./emails');
 
 const { verifyToken, checkRole } = require('./verify');
 
@@ -58,7 +59,7 @@ const {
   getPrimaryShippingAddress
 } = require("./shippingAddress");
 
-const { getHistorialPedidos, getDetallePedido } = require("./historialCompras");
+const { getHistorialPedidos, getDetallePedido, getPedidosUsuario } = require("./historialCompras");
 
 const { getUserPermissions, getAllPermissions } = require("./permision");
 
@@ -163,9 +164,11 @@ router.put("/direccion-envio/:id", updateShippingAddress);
 router.get("/usuarios/:id_usuario/direccion-envio/principal", getPrimaryShippingAddress);
 
 
-// ✅ NUEVA RUTA: HISTORIAL DE PEDIDOS
+//HISTORIAL DE PEDIDOS
 router.get('/historial-pedidos', getHistorialPedidos);
-router.get('/pedidos/:id_pedido/detalles', getDetallePedido); 
+router.get('/pedidos/:id_pedido/detalles', getDetallePedido);
+router.get('/usuarios/:id_usuario/pedidos', getPedidosUsuario);                    // GET /api/usuarios/123/pedidos
+
 
 //DATAFAST
 router.post('/checkout', crearCheckout)
