@@ -67,6 +67,22 @@ const verificarEmail = async (req, res) => {
     }
 };
 
+function cifrarDeterministicoEmail(texto) {
+    // Usar SECRET_KEY_ENCRYPTATION de tu archivo .env
+    const secretKey = process.env.SECRET_KEY_ENCRYPTATION;
+    if (!secretKey) {
+        throw new Error('SECRET_KEY_ENCRYPTATION no está definida en las variables de entorno');
+    }
+
+    // Tu clave ya tiene 64 caracteres hex, tomar los primeros 32 para AES-256
+    const key = Buffer.from(secretKey.substring(0, 64), 'hex'); // Convertir de hex a buffer (32 bytes)
+
+    const iv = Buffer.alloc(16, 0); // IV fijo de 16 bytes en cero (no aleatorio)
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(texto.toLowerCase().trim(), 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    return encrypted;
+}
 
 const reenviarVerificacion = async (req, res) => {
     const { email } = req.body;
