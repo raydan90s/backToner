@@ -150,7 +150,7 @@ const registrarUsuarioAdmin = async (req, res) => {
         // Insertar usuario
         const [insertResult] = await pool.query(
             'INSERT INTO usuario (nombre, email, password, estado, verificado) VALUES (?, ?, ?, ?, ?)',
-            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', 1] // verificado = 1
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', 0] 
         );
         const userId = insertResult.insertId;
 
