@@ -87,8 +87,6 @@ function cifrarDeterministicoEmail(texto) {
 
 const reenviarVerificacion = async (req, res) => {
     const { email } = req.body;
-    console.log("📩 Petición recibida para reenviar verificación:", email);
-
     if (!email) {
         console.warn("⚠️ No se envió email en el body");
         return res.status(400).json({ message: 'Email requerido.' });
@@ -96,25 +94,18 @@ const reenviarVerificacion = async (req, res) => {
 
     try {
         const emailCifrado = cifrarDeterministicoEmail(email);
-        console.log("🔒 Email cifrado:", emailCifrado);
-
         const [results] = await pool.query(
             'SELECT id, verificado, nombre, token_verificacion, token_verificacion_exp FROM usuario WHERE email = ?',
             [emailCifrado]
         );
-
-        console.log("📊 Resultados query:", results);
-
         if (results.length === 0) {
             console.warn("⚠️ Usuario no encontrado con ese email");
             return res.status(404).json({ message: 'Usuario no encontrado.' });
         }
 
         const usuario = results[0];
-        console.log("👤 Usuario encontrado:", usuario);
 
         if (usuario.verificado === 1) {
-            console.log("✅ Usuario ya estaba verificado:", usuario.id);
             return res.status(400).json({
                 message: 'Esta cuenta ya está verificada.',
                 verified: true
@@ -128,14 +119,12 @@ const reenviarVerificacion = async (req, res) => {
         if (usuario.token_verificacion && usuario.token_verificacion_exp) {
             const tokenExp = new Date(usuario.token_verificacion_exp);
             const diffHours = (now.getTime() - tokenExp.getTime()) / 1000 / 3600;
-            console.log("⏳ Diferencia en horas desde expiración:", diffHours);
             if (diffHours < 24) {
                 tokenExpired = false; // Token aún válido
             }
         }
 
         if (!tokenExpired) {
-            console.log("♻️ Token aún válido, no se genera nuevo.");
             return res.status(200).json({
                 message: 'Token aún válido. No se reenviará correo.',
                 verificationToken: null,
@@ -145,16 +134,11 @@ const reenviarVerificacion = async (req, res) => {
 
         // Generar nuevo token si expiró
         tokenToSend = crypto.randomBytes(32).toString('hex');
-        console.log("🔑 Nuevo token generado:", tokenToSend);
 
         await pool.query(
             'UPDATE usuario SET token_verificacion = ?, token_verificacion_exp = NOW() WHERE id = ?',
             [tokenToSend, usuario.id]
         );
-        console.log("💾 Token actualizado en BD para usuario:", usuario.id);
-
-        // Aquí deberías llamar a tu función de envío de correos (ej: sendVerificationEmail)
-        console.log("📨 Preparando correo para enviar a:", email);
 
         res.status(200).json({
             message: 'Correo de verificación listo para enviar.',

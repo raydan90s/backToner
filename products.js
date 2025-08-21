@@ -347,20 +347,17 @@ const updateProducto = async (req, res) => {
         nombre === undefined || tipo === undefined || precio === undefined ||
         descripcion === undefined || model === undefined || stock === undefined
     ) {
-        console.log('Validation Error: Faltan campos requeridos.'); // Log the specific error
         return res.status(400).json({ message: "Faltan campos requeridos." });
     }
 
     // Validar inventario seleccionado (permitir -1 como válido para 'Total')
     if (id_inventario === null || id_inventario === undefined || isNaN(id_inventario)) {
-        console.log('Validation Error: id_inventario is invalid.'); // Log the specific error
         return res.status(400).json({ message: "Debe seleccionar un inventario válido." });
     }
 
     // This condition should logically come before the database operations
     // if -1 is truly not allowed for database storage.
     if (id_inventario === -1) {
-        console.log('Validation Error: id_inventario is -1.'); // Log the specific error
         return res.status(400).json({ message: "Debe seleccionar un inventario válido." });
     }
 
