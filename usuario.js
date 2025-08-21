@@ -149,8 +149,8 @@ const registrarUsuarioAdmin = async (req, res) => {
         // Los usuarios admin se crean verificados por defecto
         // Insertar usuario
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, estado, verificado) VALUES (?, ?, ?, ?, ?)',
-            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', 0] 
+            'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo'] 
         );
         const userId = insertResult.insertId;
 
