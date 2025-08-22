@@ -65,6 +65,7 @@ const { getUserPermissions, getAllPermissions } = require("./permision");
 
 const { crearCheckout, consultarPagoHandler, obtenerIpCliente, anularPagoHandler, consultarPago } = require("./datafast");
 const registrarPago = require('./payment');
+const {getFacturacionPorPedido, registrarDatosFacturacion} = require("./facturacion");
 
 
 // Productos 
@@ -180,6 +181,11 @@ router.post('/checkout/anular', anularPagoHandler);
 //PAGOS
 router.get('/cliente-ip', obtenerIpCliente);
 router.post('/payment', registrarPago);
+
+//FACTURACION
+router.post('/facturacion', registrarDatosFacturacion);
+router.get("facturacion/:pedidoId", getFacturacionPorPedido);
+
 
 
 module.exports = router;

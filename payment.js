@@ -23,7 +23,7 @@ const cifrar = (texto) => {
 
 // Función para registrar un pago y crear un pedido si el pago es exitoso
 const registrarPago = async (req, res) => {
-    const { resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito, direccionEnvio, id_pago } = req.body;
+    const { resourcePath, estadoPago, codigoPago, esExitoso, usuarioId, productosCarrito, direccionEnvio, id_pago, facturacionId } = req.body;
 
     if (!productosCarrito || !productosCarrito.total || !productosCarrito.productos || !usuarioId || !direccionEnvio) {
         console.error("❌ Faltan datos obligatorios");
@@ -81,8 +81,8 @@ const registrarPago = async (req, res) => {
             const encryptedNota = cifrar(nota);
 
             const [pedidoResult] = await connection.execute(`
-                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota, id_pago, envio, iva_valor)
-                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pedidos (id_usuario, fecha_pedido, estado, total, direccion_envio, provincia, ciudad, numeroIdentificacion, numeroTelefono, nombrePedido, nota, id_pago, envio, iva_valor, id_facturacion)
+                VALUES (?, NOW(), 'En proceso', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 usuarioId,
                 total,
@@ -95,7 +95,8 @@ const registrarPago = async (req, res) => {
                 encryptedNota,
                 pago_id,
                 envio,
-                iva
+                iva,
+                facturacionId
             ]);
 
             pedidoId = pedidoResult.insertId;
@@ -121,6 +122,8 @@ const registrarPago = async (req, res) => {
                 ]);
             }
         }
+
+        
 
         await connection.commit(); // Confirmar transacción
 
