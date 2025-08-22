@@ -7,13 +7,17 @@ const { descifrar, cifrar } = require("./cifrado");
 const registrarDatosFacturacion = async (req, res) => {
     const { id_usuario, nombre, apellido, direccion, identificacion, correo, ciudad, provincia } = req.body;
 
+    console.log("📥 Datos recibidos:", req.body); // 👈 log inicial
+
     if (!id_usuario || !nombre || !direccion || !identificacion || !correo) {
+        console.log("❌ Faltan datos obligatorios");
         return res.status(400).json({ success: false, error: "Faltan datos obligatorios" });
     }
 
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
+        console.log("🔄 Transacción iniciada");
 
         // Cifrar campos sensibles
         const nombreCifrado = cifrar(nombre);
@@ -24,18 +28,23 @@ const registrarDatosFacturacion = async (req, res) => {
         const ciudadCifrada = ciudad ? cifrar(ciudad) : null;
         const provinciaCifrada = provincia ? cifrar(provincia) : null;
 
+        console.log("🔒 Campos cifrados:", { nombreCifrado, apellidoCifrado, direccionCifrada });
+
         // Revisar si ya existen datos de facturación para este usuario
         const [existing] = await connection.execute(
             'SELECT id FROM datos_facturacion_usuario WHERE id_usuario = ?',
             [id_usuario]
         );
+        console.log("🔍 Datos existentes:", existing);
 
         let facturacionId;
 
         if (existing.length > 0) {
             // Actualizamos los datos existentes
             facturacionId = existing[0].id;
-            await connection.execute(`
+            console.log("✏️ Actualizando facturación con ID:", facturacionId);
+
+            const [updateResult] = await connection.execute(`
                 UPDATE datos_facturacion_usuario
                 SET nombre = ?, apellido = ?, direccion = ?, identificacion = ?, correo = ?, ciudad = ?, provincia = ?
                 WHERE id = ?
@@ -49,9 +58,12 @@ const registrarDatosFacturacion = async (req, res) => {
                 provinciaCifrada,
                 facturacionId
             ]);
+            console.log("✅ Resultado update:", updateResult);
         } else {
             // Insertamos nuevos datos de facturación
-            const [result] = await connection.execute(`
+            console.log("🆕 Insertando nueva facturación");
+
+            const [insertResult] = await connection.execute(`
                 INSERT INTO datos_facturacion_usuario
                 (id_usuario, nombre, apellido, direccion, identificacion, correo, ciudad, provincia)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -66,10 +78,12 @@ const registrarDatosFacturacion = async (req, res) => {
                 provinciaCifrada
             ]);
 
-            facturacionId = result.insertId;
+            facturacionId = insertResult.insertId;
+            console.log("✅ Insert realizado con ID:", facturacionId);
         }
 
         await connection.commit();
+        console.log("💾 Transacción commit realizada");
 
         return res.status(200).json({
             success: true,
@@ -83,8 +97,10 @@ const registrarDatosFacturacion = async (req, res) => {
         return res.status(500).json({ success: false, error: 'Error interno del servidor' });
     } finally {
         connection.release();
+        console.log("🔒 Conexión liberada");
     }
 };
+
 
 const getFacturacionPorPedido = async (req, res) => {
     const { pedidoId } = req.params;
@@ -122,4 +138,4 @@ const getFacturacionPorPedido = async (req, res) => {
 };
 
 
-module.exports = {registrarDatosFacturacion, getFacturacionPorPedido};
+module.exports = { registrarDatosFacturacion, getFacturacionPorPedido };
