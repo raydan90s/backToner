@@ -7,7 +7,7 @@ const { descifrar, cifrar } = require("./cifrado");
 const registrarDatosFacturacion = async (req, res) => {
     const { id_usuario, nombre, apellido, direccion, identificacion, correo, ciudad, provincia } = req.body;
 
-    console.log("📥 Datos recibidos:", req.body); // 👈 log inicial
+    console.log("📥 Datos recibidos:", req.body);
 
     if (!id_usuario || !nombre || !direccion || !identificacion || !correo) {
         console.log("❌ Faltan datos obligatorios");
@@ -30,57 +30,24 @@ const registrarDatosFacturacion = async (req, res) => {
 
         console.log("🔒 Campos cifrados:", { nombreCifrado, apellidoCifrado, direccionCifrada });
 
-        // Revisar si ya existen datos de facturación para este usuario
-        const [existing] = await connection.execute(
-            'SELECT id FROM datos_facturacion_usuario WHERE id_usuario = ?',
-            [id_usuario]
-        );
-        console.log("🔍 Datos existentes:", existing);
+        // Insertamos nuevos datos de facturación para este pedido
+        const [insertResult] = await connection.execute(`
+            INSERT INTO datos_facturacion_usuario
+            (id_usuario, nombre, apellido, direccion, identificacion, correo, ciudad, provincia)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            id_usuario,
+            nombreCifrado,
+            apellidoCifrado,
+            direccionCifrada,
+            identificacionCifrada,
+            correoCifrado,
+            ciudadCifrada,
+            provinciaCifrada
+        ]);
 
-        let facturacionId;
-
-        if (existing.length > 0) {
-            // Actualizamos los datos existentes
-            facturacionId = existing[0].id;
-            console.log("✏️ Actualizando facturación con ID:", facturacionId);
-
-            const [updateResult] = await connection.execute(`
-                UPDATE datos_facturacion_usuario
-                SET nombre = ?, apellido = ?, direccion = ?, identificacion = ?, correo = ?, ciudad = ?, provincia = ?
-                WHERE id = ?
-            `, [
-                nombreCifrado,
-                apellidoCifrado,
-                direccionCifrada,
-                identificacionCifrada,
-                correoCifrado,
-                ciudadCifrada,
-                provinciaCifrada,
-                facturacionId
-            ]);
-            console.log("✅ Resultado update:", updateResult);
-        } else {
-            // Insertamos nuevos datos de facturación
-            console.log("🆕 Insertando nueva facturación");
-
-            const [insertResult] = await connection.execute(`
-                INSERT INTO datos_facturacion_usuario
-                (id_usuario, nombre, apellido, direccion, identificacion, correo, ciudad, provincia)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-                id_usuario,
-                nombreCifrado,
-                apellidoCifrado,
-                direccionCifrada,
-                identificacionCifrada,
-                correoCifrado,
-                ciudadCifrada,
-                provinciaCifrada
-            ]);
-
-            facturacionId = insertResult.insertId;
-            console.log("✅ Insert realizado con ID:", facturacionId);
-        }
+        const facturacionId = insertResult.insertId;
+        console.log("✅ Insert realizado con ID:", facturacionId);
 
         await connection.commit();
         console.log("💾 Transacción commit realizada");
@@ -102,39 +69,56 @@ const registrarDatosFacturacion = async (req, res) => {
 };
 
 
+
 const getFacturacionPorPedido = async (req, res) => {
-    const { pedidoId } = req.params;
+  const pedidoId = Number(req.params.pedidoId);
 
-    try {
-        const query = `
-      SELECT *
-      FROM facturacion
-      WHERE id_pedido = ?
-      LIMIT 1
-    `;
+  if (isNaN(pedidoId)) {
+    return res.status(400).json({ error: "PedidoId inválido." });
+  }
 
-        const [result] = await pool.query(query, [pedidoId]);
+  try {
+    // Primero obtenemos el pedido
+    const [pedidoRows] = await pool.query(
+      "SELECT id_facturacion FROM pedidos WHERE id = ? LIMIT 1",
+      [pedidoId]
+    );
 
-        if (result.length === 0) {
-            return res.status(404).json({ error: "No se encontraron datos de facturación para este pedido." });
-        }
-
-        const factura = result[0];
-
-        // Descifrar campos sensibles
-        factura.nombre = descifrar(factura.nombre);
-        factura.apellido = factura.apellido ? descifrar(factura.apellido) : null;
-        factura.direccion = descifrar(factura.direccion);
-        factura.identificacion = descifrar(factura.identificacion);
-        factura.correo = descifrar(factura.correo);
-        factura.ciudad = factura.ciudad ? descifrar(factura.ciudad) : null;
-        factura.provincia = factura.provincia ? descifrar(factura.provincia) : null;
-
-        res.json(factura);
-    } catch (error) {
-        console.error("Error al obtener datos de facturación:", error);
-        res.status(500).json({ error: "Error al obtener datos de facturación" });
+    if (pedidoRows.length === 0 || !pedidoRows[0].id_facturacion) {
+      return res.status(404).json({ error: "No se encontró facturación para este pedido." });
     }
+
+    const idFacturacion = pedidoRows[0].id_facturacion;
+
+    // Luego obtenemos los datos de facturación
+    const [facturaRows] = await pool.query(
+      "SELECT * FROM datos_facturacion_usuario WHERE id = ? LIMIT 1",
+      [idFacturacion]
+    );
+
+    if (facturaRows.length === 0) {
+      return res.status(404).json({ error: "Datos de facturación no encontrados." });
+    }
+
+    const factura = facturaRows[0];
+
+    // Descifrar campos sensibles
+    const datosFactura = {
+      nombre: descifrar(factura.nombre),
+      apellido: factura.apellido ? descifrar(factura.apellido) : "",
+      direccion: descifrar(factura.direccion),
+      identificacion: descifrar(factura.identificacion),
+      correo: descifrar(factura.correo),
+      ciudad: factura.ciudad ? descifrar(factura.ciudad) : "",
+      provincia: factura.provincia ? descifrar(factura.provincia) : "",
+    };
+
+    res.json(datosFactura);
+
+  } catch (error) {
+    console.error("Error al obtener datos de facturación:", error);
+    res.status(500).json({ error: "Error al obtener datos de facturación" });
+  }
 };
 
 

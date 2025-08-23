@@ -184,7 +184,7 @@ router.post('/payment', registrarPago);
 
 //FACTURACION
 router.post('/facturacion', registrarDatosFacturacion);
-router.get("facturacion/:pedidoId", getFacturacionPorPedido);
+router.get("/facturacion/:pedidoId", getFacturacionPorPedido);
 
 
 
