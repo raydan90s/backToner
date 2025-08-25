@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { verifyApiKey } = require("./auth");
 
 const {
   getProductosConImagenes,
@@ -69,7 +70,7 @@ const {getFacturacionPorPedido, registrarDatosFacturacion} = require("./facturac
 
 
 // Productos 
-router.get('/productos-con-imagenes', getProductosConImagenes);
+router.get('/productos-con-imagenes', verifyApiKey, getProductosConImagenes);
 router.put('/productos/:id/inactivar', eliminarProducto);
 router.put('/productos/:id/activar', activarProducto);
 router.get('/productos/por/:id', obtenerProductoPorId);
