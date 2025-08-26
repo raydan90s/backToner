@@ -73,19 +73,19 @@ const {getFacturacionPorPedido, registrarDatosFacturacion} = require("./facturac
 router.get('/productos-con-imagenes', verifyApiKey, getProductosConImagenes);
 router.put('/productos/:id/inactivar', eliminarProducto);
 router.put('/productos/:id/activar', activarProducto);
-router.get('/productos/por/:id', obtenerProductoPorId);
+//router.get('/productos/por/:id', verifyApiKey, obtenerProductoPorId);
 router.post('/productos', createProducto);
 router.put('/productos/:id', updateProducto);
-router.get('/productos/por-slug/:slug', obtenerProductoPorSlug);
+router.get('/productos/por-slug/:slug', verifyApiKey, obtenerProductoPorSlug);
 
 
 // Auth 
-router.get('/verificar-email/:token', verificarEmail);
+router.get('/verificar-email/:token', verifyApiKey, verificarEmail);
 router.post('/reenviar-verificacion', reenviarVerificacion);
 router.post('/registrar', registrarUsuarioPublico);
 router.post('/registrar/admin', verifyToken, checkRole('SuperAdmin'), registrarUsuarioAdmin);
 router.post('/login', inicioSesion);
-router.get('/auth/verify', verifyToken, (req, res) => {
+router.get('/auth/verify', verifyApiKey, verifyToken, (req, res) => {
   res.json({ message: 'Token válido', user: req.user });
 });
 
@@ -98,19 +98,13 @@ router.post('/logout', (req, res) => {
   res.json({ message: 'Sesión cerrada' });
 });
 
-// Auth
-router.get("/usuario", getUsuarioByEmail);
+// Admin Dashboard
+router.get("/usuario", verifyApiKey, getUsuarioByEmail);
 router.put("/usuario/rol", updateRolUsuario);
 router.put("/usuario/permisos", updatePermisosUsuario);
-router.post('/registrar', registrarUsuarioPublico)
-router.post('/registrar/admin', verifyToken, checkRole('SuperAdmin'), registrarUsuarioAdmin);
-router.post('/login', inicioSesion);
-router.get('/auth/verify', verifyToken, (req, res) => {
-  // Aquí puedes enviar información útil si el token es válido
-  res.json({ message: 'Token válido', user: req.user });
-});
+
 // Carrito 
-router.get('/cart', getCartItemsDB);
+router.get('/cart', verifyApiKey, getCartItemsDB);
 router.post('/cart/add', agregarAlCarritoDB);
 router.put('/cart/update/:productId', actualizarCantidadDB);
 router.delete('/cart/remove/:productId', eliminarItemDB);
@@ -169,7 +163,7 @@ router.get("/usuarios/:id_usuario/direccion-envio/principal", getPrimaryShipping
 //HISTORIAL DE PEDIDOS
 router.get('/historial-pedidos', getHistorialPedidos);
 router.get('/pedidos/:id_pedido/detalles', getDetallePedido);
-router.get('/usuarios/:id_usuario/pedidos', getPedidosUsuario);                    // GET /api/usuarios/123/pedidos
+router.get('/usuarios/:id_usuario/pedidos', getPedidosUsuario);          
 
 
 //DATAFAST
