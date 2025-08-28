@@ -117,70 +117,49 @@ router.route("/marcas")
 
 // Modelos 
 router.post("/modelos", createModel);
-router.get("/modelos/:id_marca", getModelsByBrand);
+router.get("/modelos/:id_marca",verifyApiKey ,getModelsByBrand);
 
 // Inventario 
 router.post("/inventario", createInventario);
-router.get("/inventario", getInventarios);
-router.get('/inventario-productos', inventariosConProductos);
-router.get('/producto/:id', productoInventario);
-router.get('/inventario/producto/:id', getInventarioPorProducto);
+router.get("/inventario", verifyApiKey, getInventarios);
+router.get('/inventario-productos', verifyApiKey ,inventariosConProductos);
+router.get('/producto/:id', verifyApiKey, productoInventario);
+router.get('/inventario/producto/:id', verifyApiKey, getInventarioPorProducto);
 
 // Configuración 
-router.get('/configuracion', getConfiguracion);
-router.put('/configuracion/precio-envio', actualizarPrecioEnvio);
-router.post('/configuracion/iva', agregarIva);
-
-//Modelos
-router.post("/modelos", createModel);
-router.get("/modelos/:id_marca", getModelsByBrand);
-
-//INVENTARIO
-router.route("/inventario")
-  .post(createInventario)
-  .get(getInventarios);
-router.get('/inventario-productos', inventariosConProductos);
-router.get('/producto/:id', productoInventario);
-router.get('/inventario/producto/:id', getInventarioPorProducto);
-
-//CONFIGURACION
-router.get('/configuracion', getConfiguracion);
+router.get('/configuracion', verifyApiKey, getConfiguracion);
 router.put('/configuracion/precio-envio', actualizarPrecioEnvio);
 router.post('/configuracion/iva', agregarIva);
 
 //PERMISOS
 router.get("/permissions", getAllPermissions);
 router.get("/permissions/:id_usuario", getUserPermissions);
+
 // Direcciones 
 router.post("/usuarios/:id_usuario/direccion-envio", createShippingAddress);
-router.get("/usuarios/:id_usuario/direccion-envio", getShippingAddresses);
-router.get("/direccion-envio/:id", getShippingAddressById);
+router.get("/usuarios/:id_usuario/direccion-envio", verifyApiKey, getShippingAddresses);
+router.get("/direccion-envio/:id", verifyApiKey,getShippingAddressById);
 router.delete("/direccion-envio/:id", deleteShippingAddress);
 router.put("/direccion-envio/:id", updateShippingAddress);
-router.get("/usuarios/:id_usuario/direccion-envio/principal", getPrimaryShippingAddress);
-
+router.get("/usuarios/:id_usuario/direccion-envio/principal", verifyApiKey, getPrimaryShippingAddress);
 
 //HISTORIAL DE PEDIDOS
-router.get('/historial-pedidos', getHistorialPedidos);
-router.get('/pedidos/:id_pedido/detalles', getDetallePedido);
-router.get('/usuarios/:id_usuario/pedidos', getPedidosUsuario);          
-
+router.get('/historial-pedidos', verifyApiKey, getHistorialPedidos);
+router.get('/pedidos/:id_pedido/detalles', verifyApiKey, getDetallePedido);
+router.get('/usuarios/:id_usuario/pedidos', verifyApiKey, getPedidosUsuario);          
 
 //DATAFAST
 router.post('/checkout', crearCheckout)
-router.get('/checkout/resultado', consultarPagoHandler);
-router.get('/checkout/consultar', consultarPago);
+router.get('/checkout/resultado', verifyApiKey, consultarPagoHandler);
+router.get('/checkout/consultar', verifyApiKey, consultarPago);
 router.post('/checkout/anular', anularPagoHandler);
 
-
 //PAGOS
-router.get('/cliente-ip', obtenerIpCliente);
+router.get('/cliente-ip', verifyApiKey, obtenerIpCliente);
 router.post('/payment', registrarPago);
 
 //FACTURACION
 router.post('/facturacion', registrarDatosFacturacion);
-router.get("/facturacion/:pedidoId", getFacturacionPorPedido);
-
-
+router.get("/facturacion/:pedidoId", verifyApiKey, getFacturacionPorPedido);
 
 module.exports = router;
