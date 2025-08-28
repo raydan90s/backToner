@@ -2,17 +2,68 @@ const pool = require('./db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const { cifrar, descifrar } = require('./cifrado');
+const crypto = require('crypto');
+
+function cifrarDeterministicoEmail(texto) {
+    // Usar SECRET_KEY_ENCRYPTATION de tu archivo .env
+    const secretKey = process.env.SECRET_KEY_ENCRYPTATION;
+    if (!secretKey) {
+        throw new Error('SECRET_KEY_ENCRYPTATION no está definida en las variables de entorno');
+    }
+
+    // Tu clave ya tiene 64 caracteres hex, tomar los primeros 32 para AES-256
+    const key = Buffer.from(secretKey.substring(0, 64), 'hex'); // Convertir de hex a buffer (32 bytes)
+
+    const iv = Buffer.alloc(16, 0); // IV fijo de 16 bytes en cero (no aleatorio)
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(texto.toLowerCase().trim(), 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    return encrypted;
+}
+
+function descifrarDeterministicoEmail(encrypted) {
+    // Usar SECRET_KEY_ENCRYPTATION de tu archivo .env
+    const secretKey = process.env.SECRET_KEY_ENCRYPTATION;
+    if (!secretKey) {
+        throw new Error('SECRET_KEY_ENCRYPTATION no está definida en las variables de entorno');
+    }
+
+    // Tu clave ya tiene 64 caracteres hex, convertir a buffer de 32 bytes
+    const key = Buffer.from(secretKey.substring(0, 64), 'hex');
+
+    const iv = Buffer.alloc(16, 0);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encrypted, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+const descifrarUsuario = (usuario) => {
+    if (!usuario) return null;
+    return {
+        ...usuario,
+        nombre: descifrar(usuario.nombre),
+        email: descifrarDeterministicoEmail(usuario.email), // Email usa cifrado determinístico
+        telefono: usuario.telefono ? descifrar(usuario.telefono) : null,
+        direccion: usuario.direccion ? descifrar(usuario.direccion) : null
+    };
+};
+
 
 const registrarUsuarioPublico = async (req, res) => {
-    const { nombre, apellido, email, password } = req.body;
+    const { name, apellido, email, password } = req.body;
 
-    if (!nombre || !email || !password) {
+    if (!name || !email || !password) {
         return res.status(400).json({ message: 'Nombre, correo electrónico y contraseña son requeridos.' });
     }
 
     try {
-        // 1. Verificar si el email ya existe
-        const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [email]);
+        // 1. Cifrar email DETERMINÍSTICAMENTE para verificar si ya existe
+        const emailCifrado = cifrarDeterministicoEmail(email);
+
+        // Buscar por email cifrado
+        const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [emailCifrado]);
 
         if (results.length > 0) {
             return res.status(409).json({ message: 'El correo electrónico ya está registrado.' });
@@ -21,17 +72,23 @@ const registrarUsuarioPublico = async (req, res) => {
         // 2. Hashear la contraseña
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const nombreCompleto = `${nombre} ${apellido || ''}`.trim();
+        // 3. Cifrar datos sensibles (nombre usa cifrado REGULAR)
+        const nombreCompleto = `${name} ${apellido || ''}`.trim();
+        const nombreCifrado = cifrar(nombreCompleto); // Cifrado regular para nombre
 
-        // 3. Insertar nuevo usuario
+        // 4. Generar token de verificación único
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h de expiración
+
+
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
-            [nombreCompleto, email, hashedPassword, 'Activo']
+            'INSERT INTO usuario (nombre, email, password, estado, token_verificacion, token_verificacion_exp) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', verificationToken, expiresAt]
         );
 
         const userId = insertResult.insertId;
 
-        // 4. Obtener el id y nombre del rol "Cliente"
+        // 6. Obtener el id y nombre del rol "Cliente"
         const [rolResult] = await pool.query('SELECT id, nombre FROM rol WHERE nombre = ?', ['Cliente']);
         if (rolResult.length === 0) {
             return res.status(500).json({ message: 'Rol Cliente no existe en la base de datos.' });
@@ -39,17 +96,19 @@ const registrarUsuarioPublico = async (req, res) => {
         const clienteRolId = rolResult[0].id;
         const clienteTipo = rolResult[0].nombre;
 
-        // 5. Insertar en usuario_rol
+        // 7. Insertar en usuario_rol
         await pool.query(
             'INSERT INTO usuario_rol (id_usuario, id_rol) VALUES (?, ?)',
             [userId, clienteRolId]
         );
 
-        // 6. Devolver el usuario registrado con su tipo (rol)
+        // 8. Devolver respuesta con datos descifrados y token de verificación
         res.status(201).json({
             userId,
             tipo: clienteTipo,
-            message: '¡Registro exitoso! Serás redirigido en unos segundos...'
+            verificationToken, // El frontend necesita esto para enviar el correo
+            message: '¡Registro exitoso! Te hemos enviado un correo de verificación.',
+            emailVerificationRequired: true
         });
 
     } catch (error) {
@@ -59,9 +118,8 @@ const registrarUsuarioPublico = async (req, res) => {
 };
 
 
-
 const registrarUsuarioAdmin = async (req, res) => {
-    const { tipo, nombre, email, password, telefono, direccion, permisos = [] } = req.body;
+    const { tipo, nombre, email, password, permisos = [] } = req.body;
 
     // Solo puede registrar SuperAdmin
     if (!req.user || req.user.tipo !== 'SuperAdmin') {
@@ -73,23 +131,30 @@ const registrarUsuarioAdmin = async (req, res) => {
     }
 
     try {
+        // Cifrar email determinísticamente para verificar si ya existe
+        const emailCifrado = cifrarDeterministicoEmail(email);
+
         // Verificar si email ya existe
-        const [results] = await pool.query('SELECT email FROM usuario WHERE email = ?', [email]);
-        if (results.length > 0) {
+        const [existing] = await pool.query('SELECT email FROM usuario WHERE email = ?', [emailCifrado]);
+        if (existing.length > 0) {
             return res.status(409).json({ error: 'El correo electrónico ya está registrado.' });
         }
 
         // Hashear contraseña
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Cifrar nombre
+        const nombreCifrado = cifrar(nombre);
+
+        // Los usuarios admin se crean verificados por defecto
         // Insertar usuario
         const [insertResult] = await pool.query(
-            'INSERT INTO usuario (nombre, email, password, estado) VALUES (?, ?, ?, ?)',
-            [nombre, email, hashedPassword, 'Activo']
+            'INSERT INTO usuario (nombre, email, password, estado, verificado) VALUES (?, ?, ?, ?, ?)',
+            [nombreCifrado, emailCifrado, hashedPassword, 'Activo', 1] // verificado = 1
         );
         const userId = insertResult.insertId;
 
-        // Verificar o crear el rol
+        // Obtener o crear rol
         let [rolResult] = await pool.query('SELECT id FROM rol WHERE nombre = ?', [tipo]);
         let rolId;
         if (rolResult.length === 0) {
@@ -105,28 +170,24 @@ const registrarUsuarioAdmin = async (req, res) => {
             [userId, rolId]
         );
 
-        // Asignar permisos al rol si vienen en el body
-        for (const nombrePermiso of permisos) {
-            // Verificar si permiso ya existe
-            const [permisoResult] = await pool.query('SELECT id FROM permiso WHERE nombre = ?', [nombrePermiso]);
-            let permisoId;
+        // Si es Admin, asignar permisos personalizados al usuario
+        if (tipo !== "SuperAdmin" && permisos.length > 0) {
+            for (const nombrePermiso of permisos) {
+                // Verificar si el permiso existe
+                const [permisoResult] = await pool.query('SELECT id FROM permiso WHERE nombre = ?', [nombrePermiso]);
+                let permisoId;
 
-            if (permisoResult.length === 0) {
-                const [permisoInsert] = await pool.query('INSERT INTO permiso (nombre) VALUES (?)', [nombrePermiso]);
-                permisoId = permisoInsert.insertId;
-            } else {
-                permisoId = permisoResult[0].id;
-            }
+                if (permisoResult.length === 0) {
+                    const [permisoInsert] = await pool.query('INSERT INTO permiso (nombre) VALUES (?)', [nombrePermiso]);
+                    permisoId = permisoInsert.insertId;
+                } else {
+                    permisoId = permisoResult[0].id;
+                }
 
-            // Verificar si ya está asignado el permiso al rol
-            const [existe] = await pool.query(
-                'SELECT * FROM rol_permiso WHERE id_rol = ? AND id_permiso = ?',
-                [rolId, permisoId]
-            );
-            if (existe.length === 0) {
+                // Insertar en usuario_permiso
                 await pool.query(
-                    'INSERT INTO rol_permiso (id_rol, id_permiso) VALUES (?, ?)',
-                    [rolId, permisoId]
+                    'INSERT INTO usuario_permiso (id_usuario, id_permiso) VALUES (?, ?) ON DUPLICATE KEY UPDATE id_usuario=id_usuario',
+                    [userId, permisoId]
                 );
             }
         }
@@ -135,7 +196,8 @@ const registrarUsuarioAdmin = async (req, res) => {
             userId,
             tipo,
             permisos,
-            message: 'Usuario administrador registrado exitosamente.'
+            message: 'Usuario administrador registrado exitosamente.',
+            verified: true // Los admin se crean verificados
         });
 
     } catch (error) {
@@ -144,54 +206,168 @@ const registrarUsuarioAdmin = async (req, res) => {
     }
 };
 
+async function updateRolUsuario(req, res) {
+    const { id_usuario, nuevoRol } = req.body;
 
+    if (!id_usuario || !nuevoRol) {
+        return res.status(400).json({ error: "Faltan datos" });
+    }
+
+    try {
+        // Verificar que el rol exista
+        const [roles] = await pool.query("SELECT id FROM rol WHERE nombre = ?", [nuevoRol]);
+        if (roles.length === 0) return res.status(400).json({ error: "Rol no válido" });
+
+        const id_rol = roles[0].id;
+
+        // Eliminar roles actuales
+        await pool.query("DELETE FROM usuario_rol WHERE id_usuario = ?", [id_usuario]);
+
+        // Asignar nuevo rol
+        await pool.query("INSERT INTO usuario_rol (id_usuario, id_rol) VALUES (?, ?)", [id_usuario, id_rol]);
+
+        // Si es SuperAdmin, no hace falta modificar usuario_permiso
+        if (nuevoRol !== "SuperAdmin") {
+            // Opcional: si quieres limpiar permisos individuales al cambiar rol
+            await pool.query("DELETE FROM usuario_permiso WHERE id_usuario = ?", [id_usuario]);
+        }
+
+        return res.json({ success: true, message: `Rol actualizado a ${nuevoRol}` });
+    } catch (error) {
+        console.error("Error al actualizar rol:", error);
+        return res.status(500).json({ error: "Error al actualizar rol" });
+    }
+}
+
+async function updatePermisosUsuario(req, res) {
+    const { id_usuario, permisos } = req.body;
+
+    if (!id_usuario || !Array.isArray(permisos)) {
+        return res.status(400).json({ error: "Faltan datos o permisos no es un array" });
+    }
+
+    try {
+        // Obtener rol del usuario
+        const [rolResult] = await pool.query("SELECT r.nombre FROM rol r JOIN usuario_rol ur ON ur.id_rol = r.id WHERE ur.id_usuario = ?", [id_usuario]);
+        if (rolResult.length === 0) return res.status(400).json({ error: "El usuario no tiene un rol asignado" });
+
+        const rolNombre = rolResult[0].nombre;
+
+        if (rolNombre === "SuperAdmin") {
+            return res.status(400).json({ error: "No se pueden modificar permisos de SuperAdmin" });
+        }
+
+        // Eliminar permisos individuales actuales
+        await pool.query("DELETE FROM usuario_permiso WHERE id_usuario = ?", [id_usuario]);
+
+        // Insertar nuevos permisos
+        for (const nombrePermiso of permisos) {
+            const [permisoResult] = await pool.query("SELECT id FROM permiso WHERE nombre = ?", [nombrePermiso]);
+            let permisoId;
+            if (permisoResult.length === 0) {
+                // Crear permiso si no existe
+                const [permisoInsert] = await pool.query("INSERT INTO permiso (nombre) VALUES (?)", [nombrePermiso]);
+                permisoId = permisoInsert.insertId;
+            } else {
+                permisoId = permisoResult[0].id;
+            }
+
+            // Insertar permiso al usuario
+            await pool.query(
+                "INSERT INTO usuario_permiso (id_usuario, id_permiso) VALUES (?, ?) ON DUPLICATE KEY UPDATE id_usuario=id_usuario",
+                [id_usuario, permisoId]
+            );
+        }
+
+        return res.json({ success: true, message: "Permisos actualizados correctamente" });
+    } catch (error) {
+        console.error("Error al actualizar permisos:", error);
+        return res.status(500).json({ error: "Error al actualizar permisos del usuario" });
+    }
+}
 
 const inicioSesion = async (req, res) => {
     const { email, password } = req.body;
 
+    // Validación de campos requeridos
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email y contraseña son requeridos.' });
+    }
+
     try {
+        const emailCifrado = cifrarDeterministicoEmail(email);
+
         const [results] = await pool.query(`
             SELECT u.*, r.nombre AS tipo
             FROM usuario u
             JOIN usuario_rol ur ON u.id = ur.id_usuario
             JOIN rol r ON ur.id_rol = r.id
             WHERE u.email = ?
-        `, [email]);
+        `, [emailCifrado]);
 
         const user = results[0];
 
         if (!user) {
-            return res.status(401).json({ error: 'Usuario no encontrado' });
+            return res.status(401).json({ error: 'Credenciales inválidas' }); // Más genérico por seguridad
         }
 
+        // Verificar si el usuario está activo
+        if (user.estado !== 'Activo') {
+            return res.status(403).json({ error: 'Cuenta desactivada. Contacta al administrador.' });
+        }
+
+        // Verificar contraseña antes de verificación de email (más eficiente)
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
         if (!isPasswordCorrect) {
-            return res.status(401).json({ error: 'Contraseña incorrecta' });
+            return res.status(401).json({ error: 'Credenciales inválidas' }); // Más genérico por seguridad
         }
 
+        // Verificar si el email está verificado
+        if (!user.verificado || user.verificado === 0) {
+            return res.status(403).json({
+                error: 'Debes verificar tu correo electrónico antes de iniciar sesión.',
+                user: {
+                    id: user.id,
+                    email: descifrarDeterministicoEmail(user.email), // tu función para descifrar
+                    nombre: descifrar(user.nombre),
+                },
+                emailNotVerified: true,
+                showResendOption: true
+            });
+        }
+
+        // Descifrar datos del usuario
+        const usuarioDescifrado = descifrarUsuario(user);
+
+        // Generar token JWT
         const token = jwt.sign(
             {
                 id: user.id,
-                email: user.email,
-                tipo: user.tipo,  // ← Aquí ya tienes el rol como "tipo"
-                nombre: user.nombre
+                email: usuarioDescifrado.email,
+                tipo: user.tipo,
+                nombre: usuarioDescifrado.nombre,
+                verificado: true // Confirmamos que está verificado
             },
             process.env.SECRET_KEY,
             { expiresIn: '1h' }
         );
 
+        // Establecer cookie
         res.cookie('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'Lax',
+            maxAge: 3600000 // 1 hora en milisegundos
         });
 
         res.json({
             message: 'Inicio de sesión exitoso',
             user: {
                 id: user.id,
-                email: user.email,
-                tipo: user.tipo  // ← También aquí puedes usarlo en el frontend
+                email: usuarioDescifrado.email,
+                nombre: usuarioDescifrado.nombre, // Incluir nombre en la respuesta
+                tipo: user.tipo,
+                verificado: true
             }
         });
 
@@ -212,7 +388,7 @@ const eliminarUsuario = async (req, res) => {
         );
 
         if (results.affectedRows === 0) {
-            return res.status(404).json({ error: 'Correo electronico no registrado' });
+            return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
         res.json({ message: 'Usuario inactivado exitosamente.' });
@@ -223,104 +399,55 @@ const eliminarUsuario = async (req, res) => {
     }
 };
 
-// 1. Buscar usuario por correo (incluye rol y permisos)
 async function getUsuarioByEmail(req, res) {
     const { email } = req.query;
 
     if (!email) return res.status(400).json({ error: "Falta el parámetro email" });
 
     try {
+        // Cifrar el email DETERMINÍSTICAMENTE para buscar
+        const emailCifrado = cifrarDeterministicoEmail(email);
+
         // Obtener usuario
-        const [usuarios] = await pool.query("SELECT id, nombre, email FROM usuario WHERE email = ?", [email]);
+        const [usuarios] = await pool.query("SELECT id, nombre, email FROM usuario WHERE email = ?", [emailCifrado]);
         if (usuarios.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
 
         const usuario = usuarios[0];
 
+        // Descifrar datos del usuario
+        const usuarioDescifrado = descifrarUsuario(usuario);
+
         // Obtener rol
         const [roles] = await pool.query(`
-      SELECT r.nombre 
-      FROM rol r
-      JOIN usuario_rol ur ON ur.id_rol = r.id
-      WHERE ur.id_usuario = ?
-      LIMIT 1
-    `, [usuario.id]);
+            SELECT r.nombre 
+            FROM rol r
+            JOIN usuario_rol ur ON ur.id_rol = r.id
+            WHERE ur.id_usuario = ?
+            LIMIT 1
+        `, [usuario.id]);
 
         const rol = roles[0]?.nombre || "Sin rol";
 
-        // Obtener permisos
+        // Obtener permisos asignados directamente al usuario
         const [permisosRaw] = await pool.query(`
-      SELECT p.nombre
-      FROM permiso p
-      JOIN rol_permiso rp ON rp.id_permiso = p.id
-      JOIN usuario_rol ur ON ur.id_rol = rp.id_rol
-      WHERE ur.id_usuario = ?
-    `, [usuario.id]);
+            SELECT p.nombre
+            FROM permiso p
+            JOIN usuario_permiso up ON up.id_permiso = p.id
+            WHERE up.id_usuario = ?
+        `, [usuario.id]);
 
         const permisos = permisosRaw.map(row => row.nombre);
 
-        return res.json({ usuario: { ...usuario, rol, permisos } });
+        return res.json({
+            usuario: {
+                ...usuarioDescifrado,
+                rol,
+                permisos
+            }
+        });
     } catch (error) {
         console.error("Error al obtener usuario:", error);
         return res.status(500).json({ error: "Error interno del servidor" });
-    }
-}
-
-// 2. Actualizar rol del usuario
-async function updateRolUsuario(req, res) {
-    const { id_usuario, nuevoRol } = req.body;
-
-    if (!id_usuario || !nuevoRol) return res.status(400).json({ error: "Faltan datos" });
-
-    try {
-        // Verificar que el rol exista
-        const [roles] = await pool.query("SELECT id FROM rol WHERE nombre = ?", [nuevoRol]);
-        if (roles.length === 0) return res.status(400).json({ error: "Rol no válido" });
-
-        const id_rol = roles[0].id;
-
-        // Eliminar roles actuales
-        await pool.query("DELETE FROM usuario_rol WHERE id_usuario = ?", [id_usuario]);
-
-        // Asignar nuevo rol
-        await pool.query("INSERT INTO usuario_rol (id_usuario, id_rol) VALUES (?, ?)", [id_usuario, id_rol]);
-
-        return res.json({ success: true });
-    } catch (error) {
-        console.error("Error al actualizar rol:", error);
-        return res.status(500).json({ error: "Error al actualizar rol" });
-    }
-}
-
-// 3. Actualizar permisos del usuario (vía rol actual)
-async function updatePermisosUsuario(req, res) {
-    const { id_usuario, permisos } = req.body;
-
-    if (!id_usuario || !Array.isArray(permisos)) {
-        return res.status(400).json({ error: "Faltan datos o permisos no es un array" });
-    }
-
-    try {
-        // Obtener el rol actual
-        const [rolResult] = await pool.query("SELECT id_rol FROM usuario_rol WHERE id_usuario = ?", [id_usuario]);
-        if (rolResult.length === 0) return res.status(400).json({ error: "El usuario no tiene un rol asignado" });
-
-        const id_rol = rolResult[0].id_rol;
-
-        // Eliminar permisos actuales del rol
-        await pool.query("DELETE FROM rol_permiso WHERE id_rol = ?", [id_rol]);
-
-        // Insertar nuevos permisos
-        for (const permisoNombre of permisos) {
-            const [permisoResult] = await pool.query("SELECT id FROM permiso WHERE nombre = ?", [permisoNombre]);
-            if (permisoResult.length > 0) {
-                await pool.query("INSERT INTO rol_permiso (id_rol, id_permiso) VALUES (?, ?)", [id_rol, permisoResult[0].id]);
-            }
-        }
-
-        return res.json({ success: true });
-    } catch (error) {
-        console.error("Error al actualizar permisos:", error);
-        return res.status(500).json({ error: "Error al actualizar permisos del usuario" });
     }
 }
 

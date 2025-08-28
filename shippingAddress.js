@@ -1,6 +1,22 @@
 const pool = require("./db");
+const crypto = require('crypto');
+require('dotenv').config();
+const { cifrar, descifrar } = require('./cifrado');
 
-// ✅ Crear una nueva dirección
+const descifrarDireccion = (direccion) => {
+  return {
+    ...direccion,
+    nombre: descifrar(direccion.nombre),
+    apellido: descifrar(direccion.apellido),
+    direccion: descifrar(direccion.direccion),
+    telefono: descifrar(direccion.telefono),
+    cedula: descifrar(direccion.cedula),
+    ciudad: descifrar(direccion.ciudad),
+    provincia: descifrar(direccion.provincia),
+    postal: descifrar(direccion.postal)
+  };
+};
+
 const createShippingAddress = async (req, res) => {
   const { id_usuario } = req.params;
   const {
@@ -11,8 +27,11 @@ const createShippingAddress = async (req, res) => {
     cedula,
     ciudad,
     provincia,
+    pastcode,
     es_principal
   } = req.body;
+
+  console.log("Datos recibidos:", req.body);
 
   if (!id_usuario || !direccion || !telefono || !ciudad || !provincia) {
     return res.status(400).json({ error: "Campos obligatorios faltantes" });
@@ -41,23 +60,35 @@ const createShippingAddress = async (req, res) => {
       );
     }
 
+    // Cifrar los datos sensibles antes de guardar
+    const nombreCifrado = cifrar(nombre);
+    const apellidoCifrado = cifrar(apellido);
+    const direccionCifrada = cifrar(direccion);
+    const telefonoCifrado = cifrar(telefono);
+    const cedulaCifrada = cifrar(cedula);
+    const ciudadCifrada = cifrar(ciudad);
+    const provinciaCifrada = cifrar(provincia);
+    const pastcodeCifrado = cifrar(pastcode);
+
     const query = `
       INSERT INTO direccion_envio_usuario 
-      (id_usuario, nombre, apellido, direccion, telefono, cedula, ciudad, provincia, es_principal)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id_usuario, nombre, apellido, direccion, telefono, cedula, ciudad, provincia, postal, es_principal)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [result] = await pool.query(query, [
       id_usuario,
-      nombre,
-      apellido,
-      direccion,
-      telefono,
-      cedula,
-      ciudad,
-      provincia,
+      nombreCifrado,
+      apellidoCifrado,
+      direccionCifrada,
+      telefonoCifrado,
+      cedulaCifrada,
+      ciudadCifrada,
+      provinciaCifrada,
+      pastcodeCifrado,
       marcarComoPrincipal
     ]);
 
+    // Devolver la respuesta con datos descifrados
     const nuevaDireccion = {
       id: result.insertId,
       id_usuario,
@@ -68,6 +99,7 @@ const createShippingAddress = async (req, res) => {
       cedula,
       ciudad,
       provincia,
+      postal: pastcode,
       es_principal: marcarComoPrincipal
     };
 
@@ -78,8 +110,6 @@ const createShippingAddress = async (req, res) => {
   }
 };
 
-
-// ✅ Obtener todas las direcciones de un usuario
 const getShippingAddresses = async (req, res) => {
   const { id_usuario } = req.params;
 
@@ -88,14 +118,17 @@ const getShippingAddresses = async (req, res) => {
       "SELECT * FROM direccion_envio_usuario WHERE id_usuario = ?",
       [id_usuario]
     );
-    res.status(200).json(rows);
+    
+    // Descifrar todas las direcciones antes de enviarlas
+    const direccionesDescifradas = rows.map(direccion => descifrarDireccion(direccion));
+    
+    res.status(200).json(direccionesDescifradas);
   } catch (err) {
     console.error("Error al obtener direcciones:", err);
     res.status(500).json({ error: "Error del servidor" });
   }
 };
 
-// ✅ Obtener una dirección específica (por ID)
 const getShippingAddressById = async (req, res) => {
   const { id } = req.params;
 
@@ -109,14 +142,16 @@ const getShippingAddressById = async (req, res) => {
       return res.status(404).json({ error: "Dirección no encontrada" });
     }
 
-    res.status(200).json(rows[0]);
+    // Descifrar la dirección antes de enviarla
+    const direccionDescifrada = descifrarDireccion(rows[0]);
+
+    res.status(200).json(direccionDescifrada);
   } catch (err) {
     console.error("Error al obtener dirección:", err);
     res.status(500).json({ error: "Error del servidor" });
   }
 };
 
-// ✅ Eliminar una dirección
 const deleteShippingAddress = async (req, res) => {
   const { id } = req.params;
 
@@ -137,7 +172,6 @@ const deleteShippingAddress = async (req, res) => {
   }
 };
 
-// ✅ Actualizar una dirección existente
 const updateShippingAddress = async (req, res) => {
   const { id } = req.params;
   const {
@@ -148,6 +182,7 @@ const updateShippingAddress = async (req, res) => {
     cedula,
     ciudad,
     provincia,
+    pastcode,
     es_principal
   } = req.body;
 
@@ -172,22 +207,33 @@ const updateShippingAddress = async (req, res) => {
       );
     }
 
+    // Cifrar los datos antes de actualizar
+    const nombreCifrado = cifrar(nombre);
+    const apellidoCifrado = cifrar(apellido);
+    const direccionCifrada = cifrar(direccion);
+    const telefonoCifrado = cifrar(telefono);
+    const cedulaCifrada = cifrar(cedula);
+    const ciudadCifrada = cifrar(ciudad);
+    const provinciaCifrada = cifrar(provincia);
+    const pastcodeCifrado = cifrar(pastcode);
+
     // Ahora actualizo la dirección
     const query = `
       UPDATE direccion_envio_usuario
       SET nombre = ?, apellido = ?, direccion = ?, telefono = ?,
-          cedula = ?, ciudad = ?, provincia = ?, 
+          cedula = ?, ciudad = ?, provincia = ?, postal = ?, 
           ${es_principal ? "es_principal = TRUE" : "es_principal = FALSE"}
       WHERE id = ?
     `;
     const [result] = await pool.query(query, [
-      nombre || null,
-      apellido || null,
-      direccion,
-      telefono,
-      cedula || null,
-      ciudad,
-      provincia,
+      nombreCifrado,
+      apellidoCifrado,
+      direccionCifrada,
+      telefonoCifrado,
+      cedulaCifrada,
+      ciudadCifrada,
+      provinciaCifrada,
+      pastcodeCifrado,
       id
     ]);
 
@@ -195,13 +241,15 @@ const updateShippingAddress = async (req, res) => {
       return res.status(404).json({ error: "Dirección no encontrada" });
     }
 
-    // Devolver la dirección actualizada
+    // Devolver la dirección actualizada descifrada
     const [[updated]] = await pool.query(
       "SELECT * FROM direccion_envio_usuario WHERE id = ?",
       [id]
     );
 
-    res.status(200).json(updated);
+    const direccionDescifrada = descifrarDireccion(updated);
+
+    res.status(200).json(direccionDescifrada);
   } catch (err) {
     console.error("Error al actualizar dirección:", err);
     res.status(500).json({ error: "Error al actualizar dirección" });
@@ -216,23 +264,26 @@ const getPrimaryShippingAddress = async (req, res) => {
       "SELECT * FROM direccion_envio_usuario WHERE id_usuario = ? AND es_principal = 1 LIMIT 1",
       [id_usuario]
     );
+    
     if (rows.length === 0) {
       return res.status(404).json({ message: "No se encontró dirección principal" });
     }
-    res.status(200).json(rows[0]);
+    
+    // Descifrar la dirección principal antes de enviarla
+    const direccionDescifrada = descifrarDireccion(rows[0]);
+    
+    res.status(200).json(direccionDescifrada);
   } catch (err) {
     console.error("Error al obtener dirección principal:", err);
     res.status(500).json({ error: "Error del servidor" });
   }
 };
 
-
 module.exports = {
   createShippingAddress,
   getShippingAddresses,
   getShippingAddressById,
   deleteShippingAddress,
-  updateShippingAddress,      // <--- exportarlo
+  updateShippingAddress,
   getPrimaryShippingAddress
-
 };

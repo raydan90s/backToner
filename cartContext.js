@@ -121,6 +121,31 @@ const getCartItemsDB = async (req, res) => {
   }
 };
 
+const vaciarCarritoDB = async (req, res) => {
+  console.log('Cuerpo recibido:', req.body);  // Esto te ayudará a verificar si id_usuario está llegando correctamente
+
+  const { id_usuario } = req.body;
+
+  if (!id_usuario) {
+    return res.status(400).json({ success: false, error: "ID de usuario no proporcionado." });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `DELETE FROM carrito WHERE id_usuario = ?`,
+      [id_usuario]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: 'El carrito está vacío o no existe.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Carrito vacío correctamente.' });
+  } catch (error) {
+    console.error('Error al vaciar el carrito:', error);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+};
 
 
 module.exports = {
@@ -128,4 +153,5 @@ module.exports = {
   actualizarCantidadDB,
   eliminarItemDB,
   getCartItemsDB,
+  vaciarCarritoDB
 };
