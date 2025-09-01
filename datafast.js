@@ -130,11 +130,8 @@ const consultarPago = async (req, res) => {
     postRequest.end();
   });
 };
-<<<<<<< HEAD
-=======
 
 
->>>>>>> Produccion
 const crearCheckout = async (req, res) => {
   try {
     const {
@@ -309,10 +306,7 @@ const anularPagoHandler = async (req, res) => {
         if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
           console.log('✅ Anulación exitosa, actualizando estado de pago a "Cancelado".');
 
-<<<<<<< HEAD
           // Guardar id_anulacion junto con el cambio de estado
-=======
->>>>>>> Produccion
           const updateQuery = `
             UPDATE pagos
             SET estado = 'Cancelado',
@@ -325,10 +319,6 @@ const anularPagoHandler = async (req, res) => {
           if (result.affectedRows > 0) {
             console.log(`✅ Estado de pago actualizado a "Cancelado" con id_anulacion: ${jsonResponse.id}`);
 
-<<<<<<< HEAD
-            // Ahora obtener el `id` de la fila actualizada usando una consulta SELECT
-=======
->>>>>>> Produccion
             const selectQuery = `
               SELECT id
               FROM pagos
@@ -340,10 +330,6 @@ const anularPagoHandler = async (req, res) => {
               const id_pago_modificar = rows[0].id;
               console.log(`ID del pago actualizado: ${id_pago_modificar}`);
 
-<<<<<<< HEAD
-              // Actualizar el estado en la tabla `pedidos`
-=======
->>>>>>> Produccion
               const updatePedidoQuery = `
                 UPDATE pedidos
                 SET estado = 'Cancelado'
@@ -360,11 +346,6 @@ const anularPagoHandler = async (req, res) => {
             return res.status(400).json({ error: 'No se pudo actualizar el estado del pago.' });
           }
         }
-<<<<<<< HEAD
-
-=======
->>>>>>> Produccion
-
         res.json(jsonResponse);
         console.log("Respuesta de anulación:", jsonResponse);
       } catch (e) {
@@ -383,10 +364,6 @@ const anularPagoHandler = async (req, res) => {
   postRequest.end();
 };
 
-<<<<<<< HEAD
-
-=======
->>>>>>> Produccion
 
 module.exports = {
   consultarPagoHandler,
