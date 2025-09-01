@@ -71,11 +71,11 @@ const {getFacturacionPorPedido, registrarDatosFacturacion} = require("./facturac
 
 // Productos 
 router.get('/productos-con-imagenes', verifyApiKey, getProductosConImagenes);
-router.put('/productos/:id/inactivar', eliminarProducto);
-router.put('/productos/:id/activar', activarProducto);
+router.put('/productos/:id/inactivar', verifyApiKey, eliminarProducto);
+router.put('/productos/:id/activar', verifyApiKey, activarProducto);
 //router.get('/productos/por/:id', verifyApiKey, obtenerProductoPorId);
 router.post('/productos', createProducto);
-router.put('/productos/:id', updateProducto);
+router.put('/productos/:id', verifyApiKey, updateProducto);
 router.get('/productos/por-slug/:slug', verifyApiKey, obtenerProductoPorSlug);
 
 
@@ -100,14 +100,14 @@ router.post('/logout', (req, res) => {
 
 // Admin Dashboard
 router.get("/usuario", verifyApiKey, getUsuarioByEmail);
-router.put("/usuario/rol", updateRolUsuario);
-router.put("/usuario/permisos", updatePermisosUsuario);
+router.put("/usuario/rol", verifyApiKey, updateRolUsuario);
+router.put("/usuario/permisos", verifyApiKey, updatePermisosUsuario);
 
 // Carrito 
 router.get('/cart', verifyApiKey, getCartItemsDB);
 router.post('/cart/add', agregarAlCarritoDB);
-router.put('/cart/update/:productId', actualizarCantidadDB);
-router.delete('/cart/remove/:productId', eliminarItemDB);
+router.put('/cart/update/:productId', verifyApiKey, actualizarCantidadDB);
+router.delete('/cart/remove/:productId', verifyApiKey, eliminarItemDB);
 router.post('/carrito/vaciar', vaciarCarritoDB);
 
 // Marcas 
@@ -128,7 +128,7 @@ router.get('/inventario/producto/:id', verifyApiKey, getInventarioPorProducto);
 
 // Configuración 
 router.get('/configuracion', verifyApiKey, getConfiguracion);
-router.put('/configuracion/precio-envio', actualizarPrecioEnvio);
+router.put('/configuracion/precio-envio', verifyApiKey, actualizarPrecioEnvio);
 router.post('/configuracion/iva', agregarIva);
 
 //PERMISOS
@@ -140,7 +140,7 @@ router.post("/usuarios/:id_usuario/direccion-envio", createShippingAddress);
 router.get("/usuarios/:id_usuario/direccion-envio", verifyApiKey, getShippingAddresses);
 router.get("/direccion-envio/:id", verifyApiKey,getShippingAddressById);
 router.delete("/direccion-envio/:id", deleteShippingAddress);
-router.put("/direccion-envio/:id", updateShippingAddress);
+router.put("/direccion-envio/:id", verifyApiKey, updateShippingAddress);
 router.get("/usuarios/:id_usuario/direccion-envio/principal", verifyApiKey, getPrimaryShippingAddress);
 
 //HISTORIAL DE PEDIDOS
