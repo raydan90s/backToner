@@ -139,7 +139,7 @@ router.get("/permissions/:id_usuario", getUserPermissions);
 router.post("/usuarios/:id_usuario/direccion-envio", createShippingAddress);
 router.get("/usuarios/:id_usuario/direccion-envio", verifyApiKey, getShippingAddresses);
 router.get("/direccion-envio/:id", verifyApiKey,getShippingAddressById);
-router.delete("/direccion-envio/:id", deleteShippingAddress);
+router.delete("/direccion-envio/:id", verifyApiKey, deleteShippingAddress);
 router.put("/direccion-envio/:id", verifyApiKey, updateShippingAddress);
 router.get("/usuarios/:id_usuario/direccion-envio/principal", verifyApiKey, getPrimaryShippingAddress);
 
