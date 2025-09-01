@@ -1,23 +1,26 @@
+// Importamos las dependencias
 require('dotenv').config();
 const pool = require('./db');
 const https = require('https');
 const querystring = require('querystring');
 
+// Cargamos las variables de entorno para las credenciales de producción
 const entityId = process.env.DATAFAST_ENTITY_ID;
 const bearer = process.env.DATAFAST_BEARER;
-const host = process.env.DATAFAST_HOST;
+const host = process.env.DATAFAST_HOST; // Ahora apunta a 'eu-prod.oppwa.com'
 const MID = process.env.SHOPPER_MID;
 const TID = process.env.SHOPPER_TID;
 const PSERV = process.env.SHOPPER_PSERV;
 const version = process.env.SHOPPER_VERSIONDF;
 const ECI = process.env.SHOPPER_ECI;
 
+// Esta función es para consultar el estado de un pago
 const request = (resourcePath, callback) => {
-  // Construir la URL completa con el resourcePath
-  const url = `https://eu-test.oppwa.com${resourcePath}?entityId=${entityId}`;
+  // Construir la URL completa con el resourcePath usando el host de producción
+  const url = `https://${host}${resourcePath}?entityId=${entityId}`;
 
   const options = {
-    hostname: 'eu-test.oppwa.com',
+    hostname: host, // Usamos el host de producción
     path: `${resourcePath}?entityId=${entityId}`,
     method: 'GET',
     headers: {
@@ -36,7 +39,7 @@ const request = (resourcePath, callback) => {
     res.on('end', function () {
       try {
         const jsonRes = JSON.parse(result);
-        return callback(jsonRes);  // Devolvemos la respuesta procesada
+        return callback(jsonRes);
       } catch (error) {
         console.error('❌ Error al parsear la respuesta:', error.message);
         callback({ error: 'Error al parsear la respuesta JSON' });
@@ -127,6 +130,11 @@ const consultarPago = async (req, res) => {
     postRequest.end();
   });
 };
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> Produccion
 const crearCheckout = async (req, res) => {
   try {
     const {
@@ -138,7 +146,7 @@ const crearCheckout = async (req, res) => {
       billing,
       cart,
       merchantTransactionId,
-      customParameters // base0, base12, iva
+      customParameters
     } = req.body;
 
     console.log("📥 Cuerpo recibido en /api/checkout:", JSON.stringify(req.body, null, 2));
@@ -204,7 +212,6 @@ const crearCheckout = async (req, res) => {
         console.log("Respuesta cruda Datafast:", result);
 
         if (response.statusCode && response.statusCode >= 400) {
-          // Si es error HTTP, enviamos el texto plano para ayudar a identificar el problema
           return res.status(response.statusCode).send({ error: result });
         }
 
@@ -234,9 +241,8 @@ const obtenerIpCliente = (req, res) => {
     req.connection?.remoteAddress ||
     null;
 
-  // Si estás en entorno local (IPv6 ::1 o IPv4 127.0.0.1), usa una IP pública simulada
   if (ip === '::1' || ip === '127.0.0.1' || ip?.startsWith('::ffff:127.0.0.1')) {
-    ip = '186.46.123.22'; // Puedes poner cualquier IP pública válida de Ecuador o de tu ISP
+    ip = '186.46.123.22';
   }
 
   res.json({ ip });
@@ -251,7 +257,6 @@ const anularPagoHandler = async (req, res) => {
 
   console.log(`🔄 Iniciando anulación para el pago con ID: ${id_pago}`);
 
-  // ⚠️ Paso 1: Consultar la base de datos para obtener los datos de la transacción.
   let transactionData;
   try {
     const query = `
@@ -271,7 +276,6 @@ const anularPagoHandler = async (req, res) => {
     return res.status(404).json({ error: 'No se encontró la transacción con ese `id_pago`.' });
   }
 
-  // ⚠️ Paso 2: Preparar los datos para la solicitud de anulación.
   const urlPath = `/v1/payments/${id_pago}`;
   const dataObject = {
     entityId,
@@ -295,7 +299,6 @@ const anularPagoHandler = async (req, res) => {
     },
   };
 
-  // ⚠️ Paso 3: Realizar la solicitud a la API de Datafast.
   const postRequest = https.request(options, (response) => {
     let result = '';
     response.on('data', chunk => result += chunk);
@@ -306,9 +309,12 @@ const anularPagoHandler = async (req, res) => {
         if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
           console.log('✅ Anulación exitosa, actualizando estado de pago a "Cancelado".');
 
+<<<<<<< HEAD
           // Guardar id_anulacion junto con el cambio de estado
+=======
+>>>>>>> Produccion
           const updateQuery = `
-            UPDATE pagos 
+            UPDATE pagos
             SET estado = 'Cancelado',
                 id_anulacion = ?
             WHERE id_pago = ?
@@ -319,7 +325,10 @@ const anularPagoHandler = async (req, res) => {
           if (result.affectedRows > 0) {
             console.log(`✅ Estado de pago actualizado a "Cancelado" con id_anulacion: ${jsonResponse.id}`);
 
+<<<<<<< HEAD
             // Ahora obtener el `id` de la fila actualizada usando una consulta SELECT
+=======
+>>>>>>> Produccion
             const selectQuery = `
               SELECT id
               FROM pagos
@@ -331,7 +340,10 @@ const anularPagoHandler = async (req, res) => {
               const id_pago_modificar = rows[0].id;
               console.log(`ID del pago actualizado: ${id_pago_modificar}`);
 
+<<<<<<< HEAD
               // Actualizar el estado en la tabla `pedidos`
+=======
+>>>>>>> Produccion
               const updatePedidoQuery = `
                 UPDATE pedidos
                 SET estado = 'Cancelado'
@@ -348,7 +360,10 @@ const anularPagoHandler = async (req, res) => {
             return res.status(400).json({ error: 'No se pudo actualizar el estado del pago.' });
           }
         }
+<<<<<<< HEAD
 
+=======
+>>>>>>> Produccion
 
         res.json(jsonResponse);
         console.log("Respuesta de anulación:", jsonResponse);
@@ -368,7 +383,10 @@ const anularPagoHandler = async (req, res) => {
   postRequest.end();
 };
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> Produccion
 
 module.exports = {
   consultarPagoHandler,
