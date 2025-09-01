@@ -74,22 +74,22 @@ router.get('/productos-con-imagenes', verifyApiKey, getProductosConImagenes);
 router.put('/productos/:id/inactivar', verifyApiKey, eliminarProducto);
 router.put('/productos/:id/activar', verifyApiKey, activarProducto);
 //router.get('/productos/por/:id', verifyApiKey, obtenerProductoPorId);
-router.post('/productos', createProducto);
-router.put('/productos/:id', verifyApiKey, updateProducto);
+router.post('/productos',verifyApiKey, createProducto);
+router.put('/productos/:id', updateProducto);
 router.get('/productos/por-slug/:slug', verifyApiKey, obtenerProductoPorSlug);
 
 
 // Auth 
 router.get('/verificar-email/:token', verifyApiKey, verificarEmail);
-router.post('/reenviar-verificacion', reenviarVerificacion);
-router.post('/registrar', registrarUsuarioPublico);
+router.post('/reenviar-verificacion',verifyApiKey, reenviarVerificacion);
+router.post('/registrar',verifyApiKey, registrarUsuarioPublico);
 router.post('/registrar/admin', verifyToken, checkRole('SuperAdmin'), registrarUsuarioAdmin);
-router.post('/login', inicioSesion);
+router.post('/login',verifyApiKey, inicioSesion);
 router.get('/auth/verify', verifyApiKey, verifyToken, (req, res) => {
   res.json({ message: 'Token válido', user: req.user });
 });
 
-router.post('/logout', (req, res) => {
+router.post('/logout',verifyApiKey, (req, res) => {
   res.clearCookie('token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -105,22 +105,22 @@ router.put("/usuario/permisos", verifyApiKey, updatePermisosUsuario);
 
 // Carrito 
 router.get('/cart', verifyApiKey, getCartItemsDB);
-router.post('/cart/add', agregarAlCarritoDB);
 router.put('/cart/update/:productId', verifyApiKey, actualizarCantidadDB);
 router.delete('/cart/remove/:productId', verifyApiKey, eliminarItemDB);
-router.post('/carrito/vaciar', vaciarCarritoDB);
+router.post('/cart/add',verifyApiKey, agregarAlCarritoDB);
+router.post('/carrito/vaciar',verifyApiKey, vaciarCarritoDB);
 
 // Marcas 
-router.route("/marcas")
+router.route("/marcas",verifyApiKey)
   .get(getAllBrands)
   .post(createBrand);
 
 // Modelos 
-router.post("/modelos", createModel);
+router.post("/modelos",verifyApiKey, createModel);
 router.get("/modelos/:id_marca",verifyApiKey ,getModelsByBrand);
 
 // Inventario 
-router.post("/inventario", createInventario);
+router.post("/inventario",verifyApiKey, createInventario);
 router.get("/inventario", verifyApiKey, getInventarios);
 router.get('/inventario-productos', verifyApiKey ,inventariosConProductos);
 router.get('/producto/:id', verifyApiKey, productoInventario);
@@ -129,14 +129,14 @@ router.get('/inventario/producto/:id', verifyApiKey, getInventarioPorProducto);
 // Configuración 
 router.get('/configuracion', verifyApiKey, getConfiguracion);
 router.put('/configuracion/precio-envio', verifyApiKey, actualizarPrecioEnvio);
-router.post('/configuracion/iva', agregarIva);
+router.post('/configuracion/iva',verifyApiKey, agregarIva);
 
 //PERMISOS
 router.get("/permissions", getAllPermissions);
 router.get("/permissions/:id_usuario", getUserPermissions);
 
 // Direcciones 
-router.post("/usuarios/:id_usuario/direccion-envio", createShippingAddress);
+router.post("/usuarios/:id_usuario/direccion-envio",verifyApiKey, createShippingAddress);
 router.get("/usuarios/:id_usuario/direccion-envio", verifyApiKey, getShippingAddresses);
 router.get("/direccion-envio/:id", verifyApiKey,getShippingAddressById);
 router.delete("/direccion-envio/:id", verifyApiKey, deleteShippingAddress);
