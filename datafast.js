@@ -146,7 +146,7 @@ const crearCheckout = async (req, res) => {
       customParameters
     } = req.body;
 
-    console.log("📥 Cuerpo recibido en /api/checkout:", JSON.stringify(req.body, null, 2));
+    //console.log("📥 Cuerpo recibido en /api/checkout:", JSON.stringify(req.body, null, 2));
 
     const dataObject = {
       entityId,
@@ -204,9 +204,8 @@ const crearCheckout = async (req, res) => {
       let result = '';
       response.on('data', chunk => result += chunk);
       response.on('end', () => {
-        console.log("Status Code Datafast:", response.statusCode);
-        console.log("Headers Datafast:", response.headers);
-        console.log("Respuesta cruda Datafast:", result);
+        //console.log("Status Code Datafast:", response.statusCode);
+        //console.log("Respuesta cruda Datafast:", result);
 
         if (response.statusCode && response.statusCode >= 400) {
           return res.status(response.statusCode).send({ error: result });

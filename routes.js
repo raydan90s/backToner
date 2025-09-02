@@ -110,10 +110,9 @@ router.delete('/cart/remove/:productId', verifyApiKey, eliminarItemDB);
 router.post('/cart/add',verifyApiKey, agregarAlCarritoDB);
 router.post('/carrito/vaciar',verifyApiKey, vaciarCarritoDB);
 
-// Marcas 
-router.route("/marcas",verifyApiKey)
-  .get(getAllBrands)
-  .post(createBrand);
+router.route("/marcas")
+  .get(verifyApiKey, getAllBrands)
+  .post(verifyApiKey, createBrand);
 
 // Modelos 
 router.post("/modelos",verifyApiKey, createModel);
@@ -132,7 +131,7 @@ router.put('/configuracion/precio-envio', verifyApiKey, actualizarPrecioEnvio);
 router.post('/configuracion/iva',verifyApiKey, agregarIva);
 
 //PERMISOS
-router.get("/permissions", getAllPermissions);
+router.get("/permissions",  getAllPermissions);
 router.get("/permissions/:id_usuario", getUserPermissions);
 
 // Direcciones 
@@ -149,17 +148,17 @@ router.get('/pedidos/:id_pedido/detalles', verifyApiKey, getDetallePedido);
 router.get('/usuarios/:id_usuario/pedidos', verifyApiKey, getPedidosUsuario);          
 
 //DATAFAST
-router.post('/checkout', crearCheckout)
+router.post('/checkout', verifyApiKey, crearCheckout)
 router.get('/checkout/resultado', verifyApiKey, consultarPagoHandler);
 router.get('/checkout/consultar', verifyApiKey, consultarPago);
-router.post('/checkout/anular', anularPagoHandler);
+router.post('/checkout/anular', verifyApiKey, anularPagoHandler);
 
 //PAGOS
 router.get('/cliente-ip', verifyApiKey, obtenerIpCliente);
-router.post('/payment', registrarPago);
+router.post('/payment', verifyApiKey, registrarPago);
 
 //FACTURACION
-router.post('/facturacion', registrarDatosFacturacion);
+router.post('/facturacion', verifyApiKey, registrarDatosFacturacion);
 router.get("/facturacion/:pedidoId", verifyApiKey, getFacturacionPorPedido);
 
 module.exports = router;
