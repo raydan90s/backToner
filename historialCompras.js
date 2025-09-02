@@ -61,7 +61,6 @@ const getDetallePedido = async (req, res) => {
       })),
     };
 
-    console.log("Pedidos", pedido);
 
     // Descifrar campos sensibles
     pedido.direccion_envio = descifrar(pedido.direccion_envio);
@@ -71,8 +70,6 @@ const getDetallePedido = async (req, res) => {
     pedido.nota = descifrar(pedido.nota);
     pedido.provincia = descifrar(pedido.provincia);
     pedido.ciudad = descifrar(pedido.ciudad);
-
-    console.log("Nota descifrada:", pedido.nota);
 
     res.json(pedido);
   } catch (error) {

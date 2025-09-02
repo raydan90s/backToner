@@ -58,11 +58,7 @@ const request = (resourcePath, callback) => {
 const consultarPagoHandler = async (req, res) => {
   const { id } = req.query;
 
-  console.log("🔁 Recurso recibido:", id);
-
-  // Esperar 5 segundos antes de consultar
   await new Promise(resolve => setTimeout(resolve, 5000));
-  console.log(`⏱ 5 segundos de espera cumplidos, consultando pago ${id}...`);
 
   // Ahora llamamos a request
   request(id, (responseData) => {
@@ -85,9 +81,7 @@ const consultarPago = async (req, res) => {
   const { paymentId } = req.query;
   const encodedPaymentId = paymentId;
 
-  console.log(`⏱ Esperando 5 segundos antes de consultar el pago ${paymentId}`);
   await new Promise(resolve => setTimeout(resolve, 5000));
-  console.log(`🔍 Consultando ahora el pago ${paymentId}`);
 
   const options = {
     hostname: host,
@@ -146,8 +140,6 @@ const crearCheckout = async (req, res) => {
       customParameters
     } = req.body;
 
-    //console.log("📥 Cuerpo recibido en /api/checkout:", JSON.stringify(req.body, null, 2));
-
     const dataObject = {
       entityId,
       amount,
@@ -204,7 +196,6 @@ const crearCheckout = async (req, res) => {
       let result = '';
       response.on('data', chunk => result += chunk);
       response.on('end', () => {
-        //console.log("Status Code Datafast:", response.statusCode);
         //console.log("Respuesta cruda Datafast:", result);
 
         if (response.statusCode && response.statusCode >= 400) {
@@ -303,7 +294,6 @@ const anularPagoHandler = async (req, res) => {
         const jsonResponse = JSON.parse(result);
 
         if (jsonResponse.result?.code && jsonResponse.result.code.startsWith('000')) {
-          console.log('✅ Anulación exitosa, actualizando estado de pago a "Cancelado".');
 
           // Guardar id_anulacion junto con el cambio de estado
           const updateQuery = `
@@ -316,7 +306,6 @@ const anularPagoHandler = async (req, res) => {
           const [result] = await pool.query(updateQuery, [jsonResponse.id, id_pago]);
 
           if (result.affectedRows > 0) {
-            console.log(`✅ Estado de pago actualizado a "Cancelado" con id_anulacion: ${jsonResponse.id}`);
 
             const selectQuery = `
               SELECT id
@@ -335,18 +324,14 @@ const anularPagoHandler = async (req, res) => {
                 WHERE id_pago = ?
               `;
               await pool.query(updatePedidoQuery, [id_pago_modificar]);
-              console.log('✅ Estado de pedido actualizado a "Cancelado" en la base de datos.');
             } else {
-              console.log('❌ No se encontró el pago con id_pago:', id_pago);
               return res.status(404).json({ error: 'No se encontró el pago con ese id_pago.' });
             }
           } else {
-            console.log('❌ No se actualizó ningún pago con ese id_pago:', id_pago);
             return res.status(400).json({ error: 'No se pudo actualizar el estado del pago.' });
           }
         }
         res.json(jsonResponse);
-        console.log("Respuesta de anulación:", jsonResponse);
       } catch (e) {
         console.error('❌ Error al parsear JSON de anulación:', e);
         res.status(500).send({ error: 'Error al procesar la respuesta de la anulación.' });

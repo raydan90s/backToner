@@ -31,8 +31,6 @@ const createShippingAddress = async (req, res) => {
     es_principal
   } = req.body;
 
-  console.log("Datos recibidos:", req.body);
-
   if (!id_usuario || !direccion || !telefono || !ciudad || !provincia) {
     return res.status(400).json({ error: "Campos obligatorios faltantes" });
   }

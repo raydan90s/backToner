@@ -1,24 +1,18 @@
 // facturacionController.js
 const pool = require('./db');
-const crypto = require('crypto');
 require('dotenv').config();
 const { descifrar, cifrar } = require("./cifrado");
 
 const registrarDatosFacturacion = async (req, res) => {
     const { id_usuario, nombre, apellido, direccion, identificacion, correo, ciudad, provincia } = req.body;
 
-    console.log("📥 Datos recibidos:", req.body);
-
     if (!id_usuario || !nombre || !direccion || !identificacion || !correo) {
-        console.log("❌ Faltan datos obligatorios");
         return res.status(400).json({ success: false, error: "Faltan datos obligatorios" });
     }
 
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
-        console.log("🔄 Transacción iniciada");
-
         // Cifrar campos sensibles
         const nombreCifrado = cifrar(nombre);
         const apellidoCifrado = cifrar(apellido || '');
@@ -28,7 +22,6 @@ const registrarDatosFacturacion = async (req, res) => {
         const ciudadCifrada = ciudad ? cifrar(ciudad) : null;
         const provinciaCifrada = provincia ? cifrar(provincia) : null;
 
-        console.log("🔒 Campos cifrados:", { nombreCifrado, apellidoCifrado, direccionCifrada });
 
         // Insertamos nuevos datos de facturación para este pedido
         const [insertResult] = await connection.execute(`
@@ -47,11 +40,8 @@ const registrarDatosFacturacion = async (req, res) => {
         ]);
 
         const facturacionId = insertResult.insertId;
-        console.log("✅ Insert realizado con ID:", facturacionId);
 
         await connection.commit();
-        console.log("💾 Transacción commit realizada");
-
         return res.status(200).json({
             success: true,
             message: "Datos de facturación registrados correctamente",
@@ -64,7 +54,6 @@ const registrarDatosFacturacion = async (req, res) => {
         return res.status(500).json({ success: false, error: 'Error interno del servidor' });
     } finally {
         connection.release();
-        console.log("🔒 Conexión liberada");
     }
 };
 
