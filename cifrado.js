@@ -18,14 +18,21 @@ export const cifrar = (texto) => {
 
 export const descifrar = (textoCifrado) => {
     if (!textoCifrado) return null;
+    try {
+        const partes = textoCifrado.split(':');
+        if (partes.length !== 2) throw new Error("Formato de texto cifrado inválido");
 
-    const partes = textoCifrado.split(':');
-    const iv = Buffer.from(partes[0], 'hex');
-    const textoCifradoFinal = partes[1];
+        const iv = Buffer.from(partes[0], 'hex');
+        const textoCifradoFinal = partes[1];
 
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(secretKey, 'hex'), iv);
-    let descifrado = decipher.update(textoCifradoFinal, 'hex', 'utf8');
-    descifrado += decipher.final('utf8');
+        const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(secretKey, 'hex'), iv);
+        let descifrado = decipher.update(textoCifradoFinal, 'hex', 'utf8');
+        descifrado += decipher.final('utf8');
 
-    return descifrado;
+        return descifrado;
+    } catch (error) {
+        console.error("Error al descifrar:", error, textoCifrado);
+        return null;
+    }
 };
+
