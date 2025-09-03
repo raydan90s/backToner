@@ -35,19 +35,6 @@ app.use(cors({
   credentials: true,
 }));
 
-// CORS primero
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, origin);
-    } else {
-      callback(new Error(`CORS: Origin ${origin} no permitido`));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-}));
-
 app.use(cookieParser());
 app.use(express.json());
 app.use(morgan('dev'));
